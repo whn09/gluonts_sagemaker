@@ -23,6 +23,9 @@ COPY ./requirements.txt /opt/ml/code/
 RUN pip config set global.index-url https://opentuna.cn/pypi/web/simple/
 RUN pip install -r /opt/ml/code/requirements.txt
 
+# RUN R -e 'install.packages(c("forecast"), repos="https://cloud.r-project.org", dependencies=TRUE)'
+# RUN pip install 'rpy2>=2.9.*,<3.*'
+
 ENV PATH="/opt/ml/code:${PATH}"
 
 # /opt/ml and all subdirectories are utilized by SageMaker, we use the /code subdirectory to store our user code.
