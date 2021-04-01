@@ -28,7 +28,17 @@ COPY ./requirements.txt /opt/ml/code/
 RUN pip config set global.index-url https://opentuna.cn/pypi/web/simple/
 RUN pip install -r /opt/ml/code/requirements.txt
 
-# RUN R -e 'install.packages(c("forecast"), repos="https://cloud.r-project.org", dependencies=TRUE)'
+# update indices
+RUN apt update -qq
+# install two helper packages we need
+RUN apt install -y --no-install-recommends software-properties-common dirmngr
+# import the signing key (by Michael Rutter) for these repo
+RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys E298A3A825C0D65DFD57CBB651716619E084DAB9
+# add the R 4.0 repo from CRAN -- adjust 'focal' to 'groovy' or 'bionic' as needed
+RUN add-apt-repository "deb https://cloud.r-project.org/bin/linux/ubuntu $(lsb_release -cs)-cran40/"
+RUN apt install -y --no-install-recommends r-base
+RUN R -e 'install.packages(c("forecast"), repos="https://cloud.r-project.org", dependencies=TRUE)'
+RUN pip install rpy2
 # RUN pip install 'rpy2>=2.9.*,<3.*'
 
 ENV PATH="/opt/ml/code:${PATH}"
@@ -41,4 +51,4 @@ RUN ln -sf /dev/stderr /var/log/nginx/error.log
 COPY ./ /opt/ml/code
 WORKDIR /opt/ml/code
 
-ENTRYPOINT ["python", "serve"]
+# ENTRYPOINT ["python", "serve"]  # Only for inference
