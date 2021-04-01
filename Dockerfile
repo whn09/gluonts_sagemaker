@@ -40,3 +40,5 @@ RUN ln -sf /dev/stderr /var/log/nginx/error.log
 # /opt/ml and all subdirectories are utilized by SageMaker, we use the /code subdirectory to store our user code.
 COPY ./ /opt/ml/code
 WORKDIR /opt/ml/code
+
+ENTRYPOINT ["python", "serve"]
