@@ -16,8 +16,13 @@
 FROM 727897471807.dkr.ecr.cn-northwest-1.amazonaws.com.cn/mxnet-training:1.6.0-cpu-py3
 # FROM 727897471807.dkr.ecr.cn-northwest-1.amazonaws.com.cn/mxnet-inference:1.6.0-cpu-py3
 
-RUN apt-get update && apt-get install -y --no-install-recommends nginx curl
-
+### Install nginx notebook
+RUN apt-get -y update && apt-get install -y --no-install-recommends \
+         wget \
+         nginx \
+         ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+    
 COPY ./requirements.txt /opt/ml/code/
 
 RUN pip config set global.index-url https://opentuna.cn/pypi/web/simple/
@@ -27,6 +32,10 @@ RUN pip install -r /opt/ml/code/requirements.txt
 # RUN pip install 'rpy2>=2.9.*,<3.*'
 
 ENV PATH="/opt/ml/code:${PATH}"
+
+# forward request and error logs to docker log collector
+RUN ln -sf /dev/stdout /var/log/nginx/access.log
+RUN ln -sf /dev/stderr /var/log/nginx/error.log
 
 # /opt/ml and all subdirectories are utilized by SageMaker, we use the /code subdirectory to store our user code.
 COPY ./ /opt/ml/code

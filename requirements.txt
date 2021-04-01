@@ -2,3 +2,5 @@ gluonts
 pystan==2.14
 fbprophet
 statsmodels
+flask 
+gunicorn
