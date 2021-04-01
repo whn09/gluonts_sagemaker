@@ -4,11 +4,20 @@ import json
 import os
 import warnings
 import flask
+
+from pathlib import Path
+
 from gluonts.model.predictor import Predictor
 
 # The flask app for serving predictions
 app = flask.Flask(__name__)
-predictor = Predictor.deserialize(os.path.join('/opt/ml/model', 'gluonts_model/deepar/'))
+model_dir = '/opt/ml/model'
+sub_dirs = os.listdir(model_dir)
+for sub_dir in sub_dirs:
+    if sub_dir in ['CanonicalRNN', 'DeepFactor', 'DeepAR', ]:  # TODO add all algo_names
+        model_dir = os.path.join(model_dir, sub_dir)
+        break
+predictor = Predictor.deserialize(Path(model_dir))
 
 @app.route('/ping', methods=['GET'])
 def ping():
