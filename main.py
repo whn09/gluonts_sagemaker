@@ -124,7 +124,7 @@ def train(args):
         #     cardinality=[61]
             cardinality=[17]
         )
-    elif args.algo_name == 'DeepState':
+    elif args.algo_name == 'DeepVAR':
         estimator = DeepVAREstimator(  # use multi
             freq=freq,
             prediction_length=prediction_length,
@@ -132,7 +132,7 @@ def train(args):
             trainer=trainer,
             target_dim=96
         )
-    elif args.algo_name == 'DeepState':
+    elif args.algo_name == 'GaussianProcess':
         estimator = GaussianProcessEstimator(
             freq=freq,
             prediction_length=prediction_length,
@@ -141,7 +141,7 @@ def train(args):
             #     cardinality=61
             cardinality=17
         )
-    elif args.algo_name == 'DeepState':
+    elif args.algo_name == 'GPVAR':
         estimator = GPVAREstimator(  # use multi
             freq=freq,
             prediction_length=prediction_length,
@@ -149,7 +149,7 @@ def train(args):
             trainer=trainer,
             target_dim=96
         )
-    elif args.algo_name == 'DeepState':
+    elif args.algo_name == 'LSTNet':
         estimator = LSTNetEstimator(  # use multi
             freq=freq,
             prediction_length=prediction_length,
@@ -160,28 +160,28 @@ def train(args):
             channels=72,
             trainer=trainer,
         )
-    elif args.algo_name == 'DeepState':
+    elif args.algo_name == 'NBEATS':
         estimator = NBEATSEstimator(
             freq=freq,
             prediction_length=prediction_length,
             context_length=context_length,
             trainer=trainer,
         )
-    elif args.algo_name == 'DeepState':
+    elif args.algo_name == 'MQCNN':
         estimator = MQCNNEstimator(
             freq=freq,
             prediction_length=prediction_length,
             context_length=context_length,
             trainer=trainer,
         )
-    elif args.algo_name == 'DeepState':
+    elif args.algo_name == 'MQRNN':
         estimator = MQRNNEstimator(
             freq=freq,
             prediction_length=prediction_length,
             context_length=context_length,
             trainer=trainer,
         )
-    elif args.algo_name == 'DeepState':
+    elif args.algo_name == 'RNN2QR':
         # # TODO
         # estimator = RNN2QRForecaster(
         #     freq=freq,
@@ -197,7 +197,7 @@ def train(args):
         #     decoder_mlp_static_dim=4
         # )
         pass
-    elif args.algo_name == 'DeepState':
+    elif args.algo_name == 'Seq2Seq':
         # # TODO
         # estimator = Seq2SeqEstimator(
         #     freq=freq,
@@ -212,7 +212,7 @@ def train(args):
         #     decoder_mlp_static_dim=4
         # )
         pass
-    elif args.algo_name == 'DeepState':
+    elif args.algo_name == 'SimpleFeedForward':
         estimator = SimpleFeedForwardEstimator(
             num_hidden_dimensions=[40, 40],
             prediction_length=prediction_length,
@@ -220,7 +220,7 @@ def train(args):
             freq=freq,
             trainer=trainer,
         )
-    elif args.algo_name == 'DeepState':
+    elif args.algo_name == 'Transformer':
         estimator = TransformerEstimator(
             freq=freq,
             prediction_length=prediction_length,
@@ -228,7 +228,7 @@ def train(args):
         #     cardinality=[61]
             cardinality=[17]
         )
-    elif args.algo_name == 'DeepState':
+    elif args.algo_name == 'WaveNet':
         estimator = WaveNetEstimator(
             freq=freq,
             prediction_length=prediction_length,
@@ -236,37 +236,29 @@ def train(args):
         #     cardinality=[61]
             cardinality=[17]
         )
-    elif args.algo_name == 'DeepState':
-        estimator = WaveNetEstimator(
-            freq=freq,
-            prediction_length=prediction_length,
-            trainer=trainer,
-        #     cardinality=[61]
-            cardinality=[17]
-        )
-    elif args.algo_name == 'Naive2':
-        # # TODO Multiplicative seasonality is not appropriate for zero and negative values
-        # predictor = Naive2Predictor(freq=freq, prediction_length=prediction_length, season_length=context_length)
-        pass
-    elif args.algo_name == 'NPTS':
-        predictor = NPTSPredictor(freq=freq, prediction_length=prediction_length, context_length=context_length)
-    elif args.algo_name == 'Prophet':
-        def configure_model(model):
-            model.add_seasonality(
-                name='weekly', period=7, fourier_order=3, prior_scale=0.1
-            )
-            return model
-        predictor = ProphetPredictor(freq=freq, prediction_length=prediction_length, init_model=configure_model)
-    elif args.algo_name == 'ARIMA':
-        # # TODO
-        # predictor = RForecastPredictor(freq=freq,
-        #                               prediction_length=prediction_length,
-        #                               method_name='arima',  # The method from rforecast to be used one of “ets”, “arima”, “tbats” (bug), “croston” (bug), “mlp” (bug).
-        #                               period=context_length,
-        #                               trunc_length=len(train[0]['target']))
-        pass
-    elif args.algo_name == 'SeasonalNaive':
-        predictor = SeasonalNaivePredictor(freq=freq, prediction_length=prediction_length)
+#     elif args.algo_name == 'Naive2':
+#         # # TODO Multiplicative seasonality is not appropriate for zero and negative values
+#         # predictor = Naive2Predictor(freq=freq, prediction_length=prediction_length, season_length=context_length)
+#         pass
+#     elif args.algo_name == 'NPTS':
+#         predictor = NPTSPredictor(freq=freq, prediction_length=prediction_length, context_length=context_length)
+#     elif args.algo_name == 'Prophet':
+#         def configure_model(model):
+#             model.add_seasonality(
+#                 name='weekly', period=7, fourier_order=3, prior_scale=0.1
+#             )
+#             return model
+#         predictor = ProphetPredictor(freq=freq, prediction_length=prediction_length, init_model=configure_model)
+#     elif args.algo_name == 'ARIMA':
+#         # TODO
+#         predictor = RForecastPredictor(freq=freq,
+#                                       prediction_length=prediction_length,
+#                                       method_name='arima',  # The method from rforecast to be used one of “ets”, “arima”, “tbats” (bug), “croston” (bug), “mlp” (bug).
+#                                       period=context_length,
+#                                       trunc_length=len(train[0]['target']))
+# #         pass
+#     elif args.algo_name == 'SeasonalNaive':
+#         predictor = SeasonalNaivePredictor(freq=freq, prediction_length=prediction_length)
     else:
         print('[ERROR]:', args.algo_name, 'not supported')
     
