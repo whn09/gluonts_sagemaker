@@ -17,7 +17,7 @@ model_dir = '/opt/ml/model'
 # model_dir = 'model'
 sub_dirs = os.listdir(model_dir)
 for sub_dir in sub_dirs:
-    if sub_dir in ['CanonicalRNN', 'DeepFactor', 'DeepAR', ]:  # TODO add all algo_names
+    if sub_dir in ['CanonicalRNN', 'DeepFactor', 'DeepAR', 'DeepState', 'DeepVAR', 'GaussianProcess', 'GPVAR', 'LSTNet', 'NBEATS', 'MQCNN', 'MQRNN', 'RNN2QR', 'Seq2Seq', 'SimpleFeedForward', 'Transformer', 'WaveNet', 'Naive2', 'NPTS', 'Prophet', 'ARIMA', 'ETS', 'TBATS', 'CROSTON', 'MLP', 'SeasonalNaive']:  # TODO add all algo_names
         model_dir = os.path.join(model_dir, sub_dir)
         break
 predictor = Predictor.deserialize(Path(model_dir))

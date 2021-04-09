@@ -87,6 +87,8 @@ def train(args):
     test_ds_multi = grouper_train(test_ds)
     predict_ds_multi = grouper_train(predict_ds)
     
+    predictor = None
+    
     trainer= Trainer(ctx="cpu", epochs=args.epochs, learning_rate=args.learning_rate, batch_size=args.batch_size, num_batches_per_epoch=100)
     
     if args.algo_name == 'CanonicalRNN':
@@ -236,36 +238,58 @@ def train(args):
         #     cardinality=[61]
             cardinality=[17]
         )
-#     elif args.algo_name == 'Naive2':
-#         # # TODO Multiplicative seasonality is not appropriate for zero and negative values
-#         # predictor = Naive2Predictor(freq=freq, prediction_length=prediction_length, season_length=context_length)
-#         pass
-#     elif args.algo_name == 'NPTS':
-#         predictor = NPTSPredictor(freq=freq, prediction_length=prediction_length, context_length=context_length)
-#     elif args.algo_name == 'Prophet':
-#         def configure_model(model):
-#             model.add_seasonality(
-#                 name='weekly', period=7, fourier_order=3, prior_scale=0.1
-#             )
-#             return model
-#         predictor = ProphetPredictor(freq=freq, prediction_length=prediction_length, init_model=configure_model)
-#     elif args.algo_name == 'ARIMA':
-#         # TODO
-#         predictor = RForecastPredictor(freq=freq,
-#                                       prediction_length=prediction_length,
-#                                       method_name='arima',  # The method from rforecast to be used one of “ets”, “arima”, “tbats” (bug), “croston” (bug), “mlp” (bug).
-#                                       period=context_length,
-#                                       trunc_length=len(train[0]['target']))
-# #         pass
-#     elif args.algo_name == 'SeasonalNaive':
-#         predictor = SeasonalNaivePredictor(freq=freq, prediction_length=prediction_length)
+    elif args.algo_name == 'Naive2':
+        # TODO Multiplicative seasonality is not appropriate for zero and negative values
+        predictor = Naive2Predictor(freq=freq, prediction_length=prediction_length, season_length=context_length)
+    elif args.algo_name == 'NPTS':
+        predictor = NPTSPredictor(freq=freq, prediction_length=prediction_length, context_length=context_length)
+    elif args.algo_name == 'Prophet':
+        def configure_model(model):
+            model.add_seasonality(
+                name='weekly', period=7, fourier_order=3, prior_scale=0.1
+            )
+            return model
+        predictor = ProphetPredictor(freq=freq, prediction_length=prediction_length, init_model=configure_model)
+    elif args.algo_name == 'ARIMA':
+        predictor = RForecastPredictor(freq=freq,
+                                      prediction_length=prediction_length,
+                                      method_name='arima',  # The method from rforecast to be used one of “ets”, “arima”, “tbats” (bug), “croston” (bug), “mlp” (bug).
+                                      period=context_length,
+                                      trunc_length=len(train[0]['target']))
+    elif args.algo_name == 'ETS':
+        predictor = RForecastPredictor(freq=freq,
+                                      prediction_length=prediction_length,
+                                      method_name='ets',  # The method from rforecast to be used one of “ets”, “arima”, “tbats” (bug), “croston” (bug), “mlp” (bug).
+                                      period=context_length,
+                                      trunc_length=len(train[0]['target']))
+    elif args.algo_name == 'TBATS':
+        predictor = RForecastPredictor(freq=freq,
+                                      prediction_length=prediction_length,
+                                      method_name='tbats',  # The method from rforecast to be used one of “ets”, “arima”, “tbats” (bug), “croston” (bug), “mlp” (bug).
+                                      period=context_length,
+                                      trunc_length=len(train[0]['target']))
+    elif args.algo_name == 'CROSTON':
+        predictor = RForecastPredictor(freq=freq,
+                                      prediction_length=prediction_length,
+                                      method_name='croston',  # The method from rforecast to be used one of “ets”, “arima”, “tbats” (bug), “croston” (bug), “mlp” (bug).
+                                      period=context_length,
+                                      trunc_length=len(train[0]['target']))
+    elif args.algo_name == 'MLP':
+        predictor = RForecastPredictor(freq=freq,
+                                      prediction_length=prediction_length,
+                                      method_name='mlp',  # The method from rforecast to be used one of “ets”, “arima”, “tbats” (bug), “croston” (bug), “mlp” (bug).
+                                      period=context_length,
+                                      trunc_length=len(train[0]['target']))
+    elif args.algo_name == 'SeasonalNaive':
+        predictor = SeasonalNaivePredictor(freq=freq, prediction_length=prediction_length)
     else:
         print('[ERROR]:', args.algo_name, 'not supported')
     
-    try:
-        predictor = estimator.train(train_ds)
-    except:
-        predictor = estimator.train(train_ds_multi)
+    if predictor is None:
+        try:
+            predictor = estimator.train(train_ds)
+        except:
+            predictor = estimator.train(train_ds_multi)
     
     model_dir = os.path.join(args.model_dir, args.algo_name)
     if not os.path.exists(model_dir):
