@@ -6,9 +6,9 @@
 
 `python main.py --train data --model-dir model --epochs 2 --algo-name LSTNet`
 
-`python main.py --train data --model-dir model --algo-name ARIMA` (R is not supported now.)
+`python main.py --train data --model-dir model --algo-name ARIMA` (R is supported now!!!)
 
-`python main.py --train data --model-dir model --algo-name Prophet` (Predictor is not supported now.)
+`python main.py --train data --model-dir model --algo-name Prophet` (Predictor is supported now!!!)
 
 ## Build Docker
 
