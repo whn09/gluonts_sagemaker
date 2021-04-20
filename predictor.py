@@ -22,10 +22,17 @@ for sub_dir in sub_dirs:
         break
 predictor = Predictor.deserialize(Path(model_dir))
 
-freq = '1H'
-prediction_length = 3*24
-context_length = 7*24
-target_quantile = 0.5
+def parse_data(dataset):
+    data = []
+    for t in dataset:
+        datai = {FieldName.TARGET: t['target'], FieldName.START: t['start']}
+        if 'id' in t:
+            datai[FieldName.ITEM_ID] = t['id']
+        if 'cat' in t:
+            datai[FieldName.FEAT_STATIC_CAT] = t['cat']
+        if 'dynamic_feat' in t:
+            datai[FieldName.FEAT_DYNAMIC_REAL] = t['dynamic_feat']
+    return data
 
 @app.route('/ping', methods=['GET'])
 def ping():
@@ -53,8 +60,11 @@ def invocations():
     data = flask.request.data.decode('utf-8')
     data = json.loads(data)
 #     print(data)
+    freq = data['freq']
+    target_quantile = data['target_quantile']
+    instances = data['instances']
 
-    ds = ListDataset([{FieldName.TARGET: t['target'][:-prediction_length], FieldName.FEAT_STATIC_CAT: t['cat'], FieldName.FEAT_DYNAMIC_REAL: t['dynamic_feat'], FieldName.START: t['start'], FieldName.ITEM_ID: t['id']} for t in data], freq=freq)
+    ds = ListDataset(parse_data(instances), freq=freq)
 
     inference_result = predictor.predict(ds)
     

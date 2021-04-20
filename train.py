@@ -64,6 +64,17 @@ def load_json(filename):
 # Training methods                                             #
 # ------------------------------------------------------------ #
 
+def parse_data(dataset):
+    data = []
+    for t in dataset:
+        datai = {FieldName.TARGET: t['target'], FieldName.START: t['start']}
+        if 'id' in t:
+            datai[FieldName.ITEM_ID] = t['id']
+        if 'cat' in t:
+            datai[FieldName.FEAT_STATIC_CAT] = t['cat']
+        if 'dynamic_feat' in t:
+            datai[FieldName.FEAT_DYNAMIC_REAL] = t['dynamic_feat']
+    return data
 
 def train(args):
     freq = args.freq  # '1H'
@@ -75,20 +86,10 @@ def train(args):
 #     predict = load_json(os.path.join(args.train, 'predict_'+freq+'.json'))
     
     num_timeseries = len(train)
-    
-#     predict_list = []
-#     for t in predict:
-#         if len(t['target'])>=prediction_length:
-#             predict_list.append({FieldName.TARGET: t['target'], FieldName.FEAT_STATIC_CAT: t['cat'], FieldName.FEAT_DYNAMIC_REAL: t['dynamic_feat'], FieldName.START: t['start'], FieldName.ITEM_ID: t['id']})
-            
-    train_ds = ListDataset([{FieldName.TARGET: t['target'], FieldName.FEAT_STATIC_CAT: t['cat'], FieldName.FEAT_DYNAMIC_REAL: t['dynamic_feat'], FieldName.START: t['start'], FieldName.ITEM_ID: t['id']} for t in train], freq=freq)
-    test_ds = ListDataset([{FieldName.TARGET: t['target'], FieldName.FEAT_STATIC_CAT: t['cat'], FieldName.FEAT_DYNAMIC_REAL: t['dynamic_feat'], FieldName.START: t['start'], FieldName.ITEM_ID: t['id']} for t in test], freq=freq)
-#     predict_ds = ListDataset(predict_list, freq=freq)  
-    
-    grouper_train = MultivariateGrouper(max_target_dim=num_timeseries)
-    train_ds_multi = grouper_train(train_ds)
-    test_ds_multi = grouper_train(test_ds)
-#     predict_ds_multi = grouper_train(predict_ds)
+
+    train_ds = ListDataset(parse_data(train), freq=freq)
+    test_ds = ListDataset(parse_data(test), freq=freq)
+#     predict_ds = ListDataset(parse_data(predict), freq=freq)  
     
     predictor = None
     
@@ -114,20 +115,18 @@ def train(args):
             prediction_length=prediction_length,
             context_length=context_length,
             trainer=trainer,
-            use_feat_dynamic_real=True,  # True
-            use_feat_static_cat=True,  # True
-        #     cardinality=[61]
-            cardinality=[17]
+            use_feat_dynamic_real=args.use_feat_dynamic_real,
+            use_feat_static_cat=args.use_feat_static_cat,
+            cardinality=args.cardinality.split(',')
         )
     elif args.algo_name == 'DeepState':
         estimator = DeepStateEstimator(
             freq=freq,
             prediction_length=prediction_length,
             trainer=trainer,
-            use_feat_dynamic_real=True,  # True
-            use_feat_static_cat=True,  # True
-        #     cardinality=[61]
-            cardinality=[17]
+            use_feat_dynamic_real=args.use_feat_dynamic_real,
+            use_feat_static_cat=args.use_feat_static_cat,
+            cardinality=args.cardinality.split(',')
         )
     elif args.algo_name == 'DeepVAR':
         estimator = DeepVAREstimator(  # use multi
@@ -143,8 +142,7 @@ def train(args):
             prediction_length=prediction_length,
             context_length=context_length,
             trainer=trainer,
-            #     cardinality=61
-            cardinality=17
+            cardinality=args.cardinality.split(',')
         )
     elif args.algo_name == 'GPVAR':
         estimator = GPVAREstimator(  # use multi
@@ -230,16 +228,14 @@ def train(args):
             freq=freq,
             prediction_length=prediction_length,
             trainer=trainer,
-        #     cardinality=[61]
-            cardinality=[17]
+            cardinality=args.cardinality.split(',')
         )
     elif args.algo_name == 'WaveNet':
         estimator = WaveNetEstimator(
             freq=freq,
             prediction_length=prediction_length,
             trainer=trainer,
-        #     cardinality=[61]
-            cardinality=[17]
+            cardinality=args.cardinality.split(',')
         )
     elif args.algo_name == 'Naive2':
         # TODO Multiplicative seasonality is not appropriate for zero and negative values
@@ -256,31 +252,31 @@ def train(args):
     elif args.algo_name == 'ARIMA':
         predictor = RForecastPredictor(freq=freq,
                                       prediction_length=prediction_length,
-                                      method_name='arima',  # The method from rforecast to be used one of “ets”, “arima”, “tbats” (bug), “croston” (bug), “mlp” (bug).
+                                      method_name='arima',
                                       period=context_length,
                                       trunc_length=len(train[0]['target']))
     elif args.algo_name == 'ETS':
         predictor = RForecastPredictor(freq=freq,
                                       prediction_length=prediction_length,
-                                      method_name='ets',  # The method from rforecast to be used one of “ets”, “arima”, “tbats” (bug), “croston” (bug), “mlp” (bug).
+                                      method_name='ets',
                                       period=context_length,
                                       trunc_length=len(train[0]['target']))
     elif args.algo_name == 'TBATS':
         predictor = RForecastPredictor(freq=freq,
                                       prediction_length=prediction_length,
-                                      method_name='tbats',  # The method from rforecast to be used one of “ets”, “arima”, “tbats” (bug), “croston” (bug), “mlp” (bug).
+                                      method_name='tbats',
                                       period=context_length,
                                       trunc_length=len(train[0]['target']))
     elif args.algo_name == 'CROSTON':
         predictor = RForecastPredictor(freq=freq,
                                       prediction_length=prediction_length,
-                                      method_name='croston',  # The method from rforecast to be used one of “ets”, “arima”, “tbats” (bug), “croston” (bug), “mlp” (bug).
+                                      method_name='croston',
                                       period=context_length,
                                       trunc_length=len(train[0]['target']))
     elif args.algo_name == 'MLP':
         predictor = RForecastPredictor(freq=freq,
                                       prediction_length=prediction_length,
-                                      method_name='mlp',  # The method from rforecast to be used one of “ets”, “arima”, “tbats” (bug), “croston” (bug), “mlp” (bug).
+                                      method_name='mlp',
                                       period=context_length,
                                       trunc_length=len(train[0]['target']))
     elif args.algo_name == 'SeasonalNaive':
@@ -293,6 +289,10 @@ def train(args):
         try:
             predictor = estimator.train(train_ds, test_ds)
         except:
+            grouper_train = MultivariateGrouper(max_target_dim=num_timeseries)
+            train_ds_multi = grouper_train(train_ds)
+            test_ds_multi = grouper_train(test_ds)
+            # predict_ds_multi = grouper_train(predict_ds)
             predictor = estimator.train(train_ds_multi, test_ds_multi)
 
 #     forecast_it, ts_it = make_evaluation_predictions(
@@ -335,6 +335,10 @@ def parse_args():
     parser.add_argument('--output-dir', type=str, default='/opt/ml/output')  # os.environ['SM_MODEL_DIR']
     parser.add_argument('--train', type=str, default='/opt/ml/input/data/training')  # os.environ['SM_CHANNEL_TRAINING']
     parser.add_argument('--algo-name', type=str, default='DeepAR')
+    
+    parser.add_argument('--use_feat_dynamic_real', action='store_true', default=True)
+    parser.add_argument('--use_feat_static_cat', action='store_true', default=True)
+    parser.add_argument('--cardinality', type=str, default='')
 
     return parser.parse_args()
 
