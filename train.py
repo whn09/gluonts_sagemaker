@@ -1,8 +1,8 @@
 from __future__ import print_function
 
 import argparse
-import logging
 import os
+import logging
 
 import mxnet as mx
 from mxnet import gluon
@@ -43,8 +43,11 @@ from gluonts.model.prophet import ProphetPredictor
 from gluonts.model.r_forecast import RForecastPredictor
 from gluonts.model.seasonal_naive import SeasonalNaivePredictor
 
+from gluonts.evaluation.backtest import make_evaluation_predictions
+from gluonts.evaluation import Evaluator
 
 logging.basicConfig(level=logging.DEBUG)
+
 
 def load_json(filename):
     data = []
@@ -69,23 +72,23 @@ def train(args):
 
     train = load_json(os.path.join(args.train, 'train_'+freq+'.json'))
     test = load_json(os.path.join(args.train, 'test_'+freq+'.json'))
-    predict = load_json(os.path.join(args.train, 'predict_'+freq+'.json'))
+#     predict = load_json(os.path.join(args.train, 'predict_'+freq+'.json'))
     
     num_timeseries = len(train)
     
-    predict_list = []
-    for t in predict:
-        if len(t['target'])>=prediction_length:
-            predict_list.append({FieldName.TARGET: t['target'], FieldName.FEAT_STATIC_CAT: t['cat'], FieldName.FEAT_DYNAMIC_REAL: t['dynamic_feat'], FieldName.START: t['start'], FieldName.ITEM_ID: t['id']})
+#     predict_list = []
+#     for t in predict:
+#         if len(t['target'])>=prediction_length:
+#             predict_list.append({FieldName.TARGET: t['target'], FieldName.FEAT_STATIC_CAT: t['cat'], FieldName.FEAT_DYNAMIC_REAL: t['dynamic_feat'], FieldName.START: t['start'], FieldName.ITEM_ID: t['id']})
             
     train_ds = ListDataset([{FieldName.TARGET: t['target'], FieldName.FEAT_STATIC_CAT: t['cat'], FieldName.FEAT_DYNAMIC_REAL: t['dynamic_feat'], FieldName.START: t['start'], FieldName.ITEM_ID: t['id']} for t in train], freq=freq)
     test_ds = ListDataset([{FieldName.TARGET: t['target'], FieldName.FEAT_STATIC_CAT: t['cat'], FieldName.FEAT_DYNAMIC_REAL: t['dynamic_feat'], FieldName.START: t['start'], FieldName.ITEM_ID: t['id']} for t in test], freq=freq)
-    predict_ds = ListDataset(predict_list, freq=freq)  
+#     predict_ds = ListDataset(predict_list, freq=freq)  
     
     grouper_train = MultivariateGrouper(max_target_dim=num_timeseries)
     train_ds_multi = grouper_train(train_ds)
     test_ds_multi = grouper_train(test_ds)
-    predict_ds_multi = grouper_train(predict_ds)
+#     predict_ds_multi = grouper_train(predict_ds)
     
     predictor = None
     
@@ -284,12 +287,28 @@ def train(args):
         predictor = SeasonalNaivePredictor(freq=freq, prediction_length=prediction_length)
     else:
         print('[ERROR]:', args.algo_name, 'not supported')
+        return
     
     if predictor is None:
         try:
-            predictor = estimator.train(train_ds)
+            predictor = estimator.train(train_ds, test_ds)
         except:
-            predictor = estimator.train(train_ds_multi)
+            predictor = estimator.train(train_ds_multi, test_ds_multi)
+
+#     forecast_it, ts_it = make_evaluation_predictions(
+#         dataset=predict_ds,  # test dataset
+#         predictor=predictor,  # predictor
+#         num_samples=100,  # number of sample paths we want for evaluation
+#     )
+
+#     forecasts = list(forecast_it)
+#     tss = list(ts_it)
+#     print(len(forecasts), len(tss))
+    
+#     evaluator = Evaluator(quantiles=[0.1, 0.5, 0.9])
+#     agg_metrics, item_metrics = evaluator(iter(tss), iter(forecasts), num_series=len(predict_ds))
+
+#     print(json.dumps(agg_metrics, indent=4))
     
     model_dir = os.path.join(args.model_dir, args.algo_name)
     if not os.path.exists(model_dir):
@@ -313,6 +332,7 @@ def parse_args():
     parser.add_argument('--learning-rate', type=float, default=0.001)
 
     parser.add_argument('--model-dir', type=str, default='/opt/ml/model')  # os.environ['SM_MODEL_DIR']
+    parser.add_argument('--output-dir', type=str, default='/opt/ml/output')  # os.environ['SM_MODEL_DIR']
     parser.add_argument('--train', type=str, default='/opt/ml/input/data/training')  # os.environ['SM_CHANNEL_TRAINING']
     parser.add_argument('--algo-name', type=str, default='DeepAR')
 
@@ -321,5 +341,5 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-
+    
     train(args)
