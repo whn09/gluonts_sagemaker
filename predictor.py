@@ -70,7 +70,13 @@ def invocations():
         target_quantile = float(data['target_quantile'])
     else:
         target_quantile = 0.5
-    instances = data['instances']
+    if 'instances' in data:
+        instances = data['instances']
+    else:
+        if isinstance(data, list):
+            instances = data
+        elif isinstance(data, dict):
+            instances = [data]
 
     ds = ListDataset(parse_data(instances), freq=freq)
 
