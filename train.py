@@ -352,8 +352,8 @@ def parse_args():
     parser.add_argument('--learning-rate', type=float, default=0.001)
     parser.add_argument('--num-batches-per-epoch', type=int, default=100)
     
-    parser.add_argument('--use-feat-dynamic-real', action='store_true', default=True)
-    parser.add_argument('--use-feat-static-cat', action='store_true', default=True)
+    parser.add_argument('--use-feat-dynamic-real', action='store_true', default=False)
+    parser.add_argument('--use-feat-static-cat', action='store_true', default=False)
     parser.add_argument('--cardinality', type=str, default='')
 
     return parser.parse_args()
