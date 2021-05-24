@@ -32,9 +32,10 @@ from gluonts.model.simple_feedforward import SimpleFeedForwardEstimator
 from gluonts.model.transformer import TransformerEstimator
 from gluonts.model.wavenet import WaveNetEstimator
 
-from gluonts.block.quantile_output import QuantileOutput
-from gluonts.trainer import Trainer
-from gluonts.block.encoder import Seq2SeqEncoder
+from gluonts.mx.block.quantile_output import QuantileOutput
+from gluonts.mx.trainer import Trainer
+from gluonts.mx.block.encoder import Seq2SeqEncoder
+
 from gluonts.model.predictor import Predictor
 
 from gluonts.model.naive_2 import Naive2Predictor
@@ -74,6 +75,7 @@ def parse_data(dataset):
             datai[FieldName.FEAT_STATIC_CAT] = t['cat']
         if 'dynamic_feat' in t:
             datai[FieldName.FEAT_DYNAMIC_REAL] = t['dynamic_feat']
+        data.append(datai)
     return data
 
 def train(args):
@@ -86,6 +88,7 @@ def train(args):
 #     predict = load_json(os.path.join(args.train, 'predict_'+freq+'.json'))
     
     num_timeseries = len(train)
+    print('num_timeseries:', num_timeseries)
 
     train_ds = ListDataset(parse_data(train), freq=freq)
     test_ds = ListDataset(parse_data(test), freq=freq)
@@ -93,7 +96,17 @@ def train(args):
     
     predictor = None
     
-    trainer= Trainer(ctx="cpu", epochs=args.epochs, learning_rate=args.learning_rate, batch_size=args.batch_size, num_batches_per_epoch=100)
+    trainer= Trainer(ctx="cpu", epochs=args.epochs, learning_rate=args.learning_rate, batch_size=args.batch_size, num_batches_per_epoch=args.num_batches_per_epoch)
+    
+    cardinality = None
+    if args.cardinality != '':
+        cardinality = args.cardinality.split(',')
+        for i in range(len(cardinality)):
+            cardinality[i] = int(cardinality[i])
+    print('cardinality:', cardinality)
+    
+    print('use_feat_dynamic_real:', args.use_feat_dynamic_real)
+    print('use_feat_static_cat:', args.use_feat_static_cat)
     
     if args.algo_name == 'CanonicalRNN':
         estimator = CanonicalRNNEstimator(
@@ -117,7 +130,7 @@ def train(args):
             trainer=trainer,
             use_feat_dynamic_real=args.use_feat_dynamic_real,
             use_feat_static_cat=args.use_feat_static_cat,
-            cardinality=args.cardinality.split(',')
+            cardinality=cardinality
         )
     elif args.algo_name == 'DeepState':
         estimator = DeepStateEstimator(
@@ -126,7 +139,7 @@ def train(args):
             trainer=trainer,
             use_feat_dynamic_real=args.use_feat_dynamic_real,
             use_feat_static_cat=args.use_feat_static_cat,
-            cardinality=args.cardinality.split(',')
+            cardinality=cardinality
         )
     elif args.algo_name == 'DeepVAR':
         estimator = DeepVAREstimator(  # use multi
@@ -142,7 +155,7 @@ def train(args):
             prediction_length=prediction_length,
             context_length=context_length,
             trainer=trainer,
-            cardinality=args.cardinality.split(',')
+            cardinality=cardinality
         )
     elif args.algo_name == 'GPVAR':
         estimator = GPVAREstimator(  # use multi
@@ -191,8 +204,7 @@ def train(args):
         #     prediction_length=prediction_length,
         #     context_length=context_length,
         #     trainer=trainer,
-        # #     cardinality=[61]
-        #     cardinality=[17],
+        #     cardinality=cardinality
         #     embedding_dimension=4,
         #     encoder_rnn_layer=4,
         #     encoder_rnn_num_hidden=4,
@@ -207,8 +219,7 @@ def train(args):
         #     prediction_length=prediction_length,
         #     context_length=context_length,
         #     trainer=trainer,
-        # #     cardinality=[61]
-        #     cardinality=[17],
+        #     cardinality=cardinality,
         #     embedding_dimension=4,
         #     encoder=Seq2SeqEncoder(),
         #     decoder_mlp_layer=[4],
@@ -228,14 +239,14 @@ def train(args):
             freq=freq,
             prediction_length=prediction_length,
             trainer=trainer,
-            cardinality=args.cardinality.split(',')
+            cardinality=cardinality
         )
     elif args.algo_name == 'WaveNet':
         estimator = WaveNetEstimator(
             freq=freq,
             prediction_length=prediction_length,
             trainer=trainer,
-            cardinality=args.cardinality.split(',')
+            cardinality=cardinality
         )
     elif args.algo_name == 'Naive2':
         # TODO Multiplicative seasonality is not appropriate for zero and negative values
@@ -288,12 +299,16 @@ def train(args):
     if predictor is None:
         try:
             predictor = estimator.train(train_ds, test_ds)
-        except:
-            grouper_train = MultivariateGrouper(max_target_dim=num_timeseries)
-            train_ds_multi = grouper_train(train_ds)
-            test_ds_multi = grouper_train(test_ds)
-            # predict_ds_multi = grouper_train(predict_ds)
-            predictor = estimator.train(train_ds_multi, test_ds_multi)
+        except Exception as e:
+            print(e)
+            try:
+                grouper_train = MultivariateGrouper(max_target_dim=num_timeseries)
+                train_ds_multi = grouper_train(train_ds)
+                test_ds_multi = grouper_train(test_ds)
+                # predict_ds_multi = grouper_train(predict_ds)
+                predictor = estimator.train(train_ds_multi, test_ds_multi)
+            except Exception as e:
+                print(e)
 
 #     forecast_it, ts_it = make_evaluation_predictions(
 #         dataset=predict_ds,  # test dataset
@@ -323,6 +338,11 @@ def train(args):
 def parse_args():
     parser = argparse.ArgumentParser()
     
+    parser.add_argument('--algo-name', type=str, default='DeepAR')
+    parser.add_argument('--model-dir', type=str, default='/opt/ml/model')  # os.environ['SM_MODEL_DIR']
+    parser.add_argument('--output-dir', type=str, default='/opt/ml/output')  # os.environ['SM_MODEL_DIR']
+    parser.add_argument('--train', type=str, default='/opt/ml/input/data/training')  # os.environ['SM_CHANNEL_TRAINING']
+    
     parser.add_argument('--freq', type=str, default='1H')
     parser.add_argument('--prediction-length', type=int, default=3*24)
     parser.add_argument('--context-length', type=int, default=7*24)
@@ -330,14 +350,10 @@ def parse_args():
     parser.add_argument('--batch-size', type=int, default=32)
     parser.add_argument('--epochs', type=int, default=200)
     parser.add_argument('--learning-rate', type=float, default=0.001)
-
-    parser.add_argument('--model-dir', type=str, default='/opt/ml/model')  # os.environ['SM_MODEL_DIR']
-    parser.add_argument('--output-dir', type=str, default='/opt/ml/output')  # os.environ['SM_MODEL_DIR']
-    parser.add_argument('--train', type=str, default='/opt/ml/input/data/training')  # os.environ['SM_CHANNEL_TRAINING']
-    parser.add_argument('--algo-name', type=str, default='DeepAR')
+    parser.add_argument('--num-batches-per-epoch', type=int, default=100)
     
-    parser.add_argument('--use_feat_dynamic_real', action='store_true', default=True)
-    parser.add_argument('--use_feat_static_cat', action='store_true', default=True)
+    parser.add_argument('--use-feat-dynamic-real', action='store_true', default=True)
+    parser.add_argument('--use-feat-static-cat', action='store_true', default=True)
     parser.add_argument('--cardinality', type=str, default='')
 
     return parser.parse_args()

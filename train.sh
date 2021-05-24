@@ -1,0 +1,1 @@
+python train.py --algo-name DeepAR --model-dir model --output-dir output --train data --freq 1H --prediction-length 72 --context-length 168 --epochs 200 --batch-size 2048 --num-batches-per-epoch 2 --use-feat-dynamic-real --use-feat-static-cat --cardinality 17

@@ -14,7 +14,8 @@ from gluonts.model.predictor import Predictor
 # The flask app for serving predictions
 app = flask.Flask(__name__)
 model_dir = '/opt/ml/model'
-# model_dir = 'model'
+if not os.path.exists(model_dir):
+    model_dir = 'model'
 sub_dirs = os.listdir(model_dir)
 for sub_dir in sub_dirs:
     if sub_dir in ['CanonicalRNN', 'DeepFactor', 'DeepAR', 'DeepState', 'DeepVAR', 'GaussianProcess', 'GPVAR', 'LSTNet', 'NBEATS', 'MQCNN', 'MQRNN', 'RNN2QR', 'Seq2Seq', 'SimpleFeedForward', 'Transformer', 'WaveNet', 'Naive2', 'NPTS', 'Prophet', 'ARIMA', 'ETS', 'TBATS', 'CROSTON', 'MLP', 'SeasonalNaive']:  # TODO add all algo_names
@@ -32,6 +33,7 @@ def parse_data(dataset):
             datai[FieldName.FEAT_STATIC_CAT] = t['cat']
         if 'dynamic_feat' in t:
             datai[FieldName.FEAT_DYNAMIC_REAL] = t['dynamic_feat']
+        data.append(datai)
     return data
 
 @app.route('/ping', methods=['GET'])
@@ -60,8 +62,14 @@ def invocations():
     data = flask.request.data.decode('utf-8')
     data = json.loads(data)
 #     print(data)
-    freq = data['freq']
-    target_quantile = data['target_quantile']
+    if 'freq' in data:
+        freq = data['freq']
+    else:
+        freq = '1H'
+    if 'target_quantile' in data:
+        target_quantile = float(data['target_quantile'])
+    else:
+        target_quantile = 0.5
     instances = data['instances']
 
     ds = ListDataset(parse_data(instances), freq=freq)
