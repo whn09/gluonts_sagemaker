@@ -84,8 +84,8 @@ def train(args):
     context_length = args.context_length  # 7*24
 
     train = load_json(os.path.join(args.train, 'train_'+freq+'.json'))
-    test = load_json(os.path.join(args.train, 'test_'+freq+'.json'))
-#     predict = load_json(os.path.join(args.train, 'predict_'+freq+'.json'))
+    test = load_json(os.path.join(args.test, 'test_'+freq+'.json'))
+#     predict = load_json(os.path.join(args.predict, 'predict_'+freq+'.json'))
     
     num_timeseries = len(train)
     print('num_timeseries:', num_timeseries)
@@ -341,7 +341,11 @@ def parse_args():
     parser.add_argument('--algo-name', type=str, default='DeepAR')
     parser.add_argument('--model-dir', type=str, default='/opt/ml/model')  # os.environ['SM_MODEL_DIR']
     parser.add_argument('--output-dir', type=str, default='/opt/ml/output')  # os.environ['SM_MODEL_DIR']
-    parser.add_argument('--train', type=str, default='/opt/ml/input/data/training')  # os.environ['SM_CHANNEL_TRAINING']
+#     parser.add_argument('--train', type=str, default='/opt/ml/input/data/training')  # os.environ['SM_CHANNEL_TRAINING']
+    parser.add_argument('--train', type=str, default='/opt/ml/input/data/train')  # os.environ['SM_CHANNEL_TRAINING']
+    parser.add_argument('--test', type=str, default='/opt/ml/input/data/test')  # os.environ['SM_CHANNEL_TEST']
+#     parser.add_argument('--predict', type=str, default='/opt/ml/input/data/predict')  # os.environ['SM_CHANNEL_PREDICT']
+    
     
     parser.add_argument('--freq', type=str, default='1H')
     parser.add_argument('--prediction-length', type=int, default=3*24)
