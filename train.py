@@ -83,6 +83,8 @@ def parse_data(dataset, use_log1p=False):
             datai[FieldName.FEAT_STATIC_CAT] = t['cat']
         if 'dynamic_feat' in t:
             datai[FieldName.FEAT_DYNAMIC_REAL] = t['dynamic_feat']
+        if 'past_dynamic_feat' in t:
+            datai[FieldName.PAST_FEAT_DYNAMIC_REAL] = t['past_dynamic_feat']
         data.append(datai)
     return data
 
@@ -91,6 +93,7 @@ def train(args):
     prediction_length = args.prediction_length
     context_length = args.context_length
     use_feat_dynamic_real = args.use_feat_dynamic_real
+    use_past_feat_dynamic_real = args.use_past_feat_dynamic_real
     use_feat_static_cat = args.use_feat_static_cat
     use_log1p = args.use_log1p
     
@@ -98,6 +101,7 @@ def train(args):
     print('prediction_length:', prediction_length)
     print('context_length:', context_length)
     print('use_feat_dynamic_real:', use_feat_dynamic_real)
+    print('use_past_feat_dynamic_real:', use_past_feat_dynamic_real)
     print('use_feat_static_cat:', use_feat_static_cat)
     print('use_log1p:', use_log1p)
     
@@ -135,12 +139,22 @@ def train(args):
             cardinality[i] = int(cardinality[i])
     print('cardinality:', cardinality)
     
+    embedding_dimension = [min(50, (cat+1)//2) for cat in cardinality] if cardinality is not None else None
+    print('embedding_dimension:', embedding_dimension)
+    
     if args.algo_name == 'CanonicalRNN':
         estimator = CanonicalRNNEstimator(
             freq=freq,
             prediction_length=prediction_length,
             context_length=context_length,
             trainer=trainer,
+            batch_size=batch_size,
+            num_layers=5, 
+            num_cells=50, 
+            cell_type='lstm', 
+            num_parallel_samples=100,
+            cardinality=cardinality,
+            embedding_dimension=10,
         )
     elif args.algo_name == 'DeepFactor':
         estimator = DeepFactorEstimator(
@@ -149,6 +163,8 @@ def train(args):
             context_length=context_length,
             trainer=trainer,
             batch_size=batch_size,
+            cardinality=cardinality,
+            embedding_dimension=10,
         )
     elif args.algo_name == 'DeepAR':
         estimator = DeepAREstimator(
@@ -165,7 +181,7 @@ def train(args):
             use_feat_static_cat = use_feat_static_cat,  # – Whether to use the feat_static_cat field from the data (default: False)
             use_feat_static_real = False,  # – Whether to use the feat_static_real field from the data (default: False)
             cardinality = cardinality,  # – Number of values of each categorical feature. This must be set if use_feat_static_cat == True (default: None)
-            embedding_dimension = [min(50, (cat+1)//2) for cat in cardinality] if cardinality is not None else None,  # – Dimension of the embeddings for categorical features (default: [min(50, (cat+1)//2) for cat in cardinality])
+            embedding_dimension = embedding_dimension,  # – Dimension of the embeddings for categorical features (default: [min(50, (cat+1)//2) for cat in cardinality])
         #     distr_output = StudentTOutput(),  # – Distribution to use to evaluate observations and sample predictions (default: StudentTOutput())
         #     scaling = True,  # – Whether to automatically scale the target values (default: true)
         #     lags_seq = None,  # – Indices of the lagged target values to use as inputs of the RNN (default: None, in which case these are automatically determined based on freq)
@@ -188,8 +204,8 @@ def train(args):
             prediction_length=prediction_length,
             trainer=trainer,
             batch_size=batch_size,
-            use_feat_dynamic_real=args.use_feat_dynamic_real,
-            use_feat_static_cat=args.use_feat_static_cat,
+            use_feat_dynamic_real=use_feat_dynamic_real,
+            use_feat_static_cat=use_feat_static_cat,
             cardinality=cardinality,
         )
     elif args.algo_name == 'DeepVAR':
@@ -202,14 +218,16 @@ def train(args):
             target_dim=96,
         )
     elif args.algo_name == 'GaussianProcess':
-        estimator = GaussianProcessEstimator(
-            freq=freq,
-            prediction_length=prediction_length,
-            context_length=context_length,
-            trainer=trainer,
-            batch_size=batch_size,
-            cardinality=cardinality,
-        )
+#         # TODO
+#         estimator = GaussianProcessEstimator(
+#             freq=freq,
+#             prediction_length=prediction_length,
+#             context_length=context_length,
+#             trainer=trainer,
+#             batch_size=batch_size,
+#             cardinality=num_timeseries,
+#         )
+        pass
     elif args.algo_name == 'GPVAR':
         estimator = GPVAREstimator(  # use multi
             freq=freq,
@@ -271,13 +289,15 @@ def train(args):
             seed=None,
         )
     elif args.algo_name == 'SelfAttention':
-        estimator = SelfAttentionEstimator(
-            freq=freq,
-            prediction_length=prediction_length,
-            context_length=context_length,
-            trainer=trainer,
-            batch_size=batch_size,
-        )
+#         # TODO
+#         estimator = SelfAttentionEstimator(
+#             freq=freq,
+#             prediction_length=prediction_length,
+#             context_length=context_length,
+#             trainer=trainer,
+#             batch_size=batch_size,
+#         )
+        pass
     elif args.algo_name == 'MQCNN':
         estimator = MQCNNEstimator(
             freq=freq,
@@ -285,6 +305,27 @@ def train(args):
             context_length=context_length,
             trainer=trainer,
             batch_size=batch_size,
+            use_past_feat_dynamic_real=use_past_feat_dynamic_real,
+            use_feat_dynamic_real=use_feat_dynamic_real,
+            use_feat_static_cat=use_feat_static_cat,
+            cardinality=cardinality,
+            embedding_dimension=embedding_dimension,
+            add_time_feature=True,
+            add_age_feature=False,
+            enable_encoder_dynamic_feature=True,
+            enable_decoder_dynamic_feature=True,
+            seed=None,
+            decoder_mlp_dim_seq=None,
+            channels_seq=None,
+            dilation_seq=None,
+            kernel_size_seq=None,
+            use_residual=True,
+            quantiles=None,
+            distr_output=None,
+            scaling=None,
+            scaling_decoder_dynamic_feature=False,
+            num_forking=None,
+            max_ts_len=None,
         )
     elif args.algo_name == 'MQRNN':
         estimator = MQRNNEstimator(
@@ -294,21 +335,6 @@ def train(args):
             trainer=trainer,
             batch_size=batch_size,
         )
-    elif args.algo_name == 'RNN2QR':
-        # # TODO
-        # estimator = RNN2QRForecaster(
-        #     freq=freq,
-        #     prediction_length=prediction_length,
-        #     context_length=context_length,
-        #     trainer=trainer,
-        #     cardinality=cardinality
-        #     embedding_dimension=4,
-        #     encoder_rnn_layer=4,
-        #     encoder_rnn_num_hidden=4,
-        #     decoder_mlp_layer=[4],
-        #     decoder_mlp_static_dim=4
-        # )
-        pass
     elif args.algo_name == 'Seq2Seq':
         # # TODO
         # estimator = Seq2SeqEstimator(
@@ -353,14 +379,16 @@ def train(args):
         #     past_dynamic_features = []
         )
     elif args.algo_name == 'DeepTPP':
-        estimator = DeepTPPEstimator(
-            prediction_interval_length=prediction_length,
-            context_interval_length=context_length,
-            freq=freq,
-            trainer=trainer,
-            batch_size=batch_size,
-            num_marks=len(cardinality) if cardinality is not None else 0,
-        )
+#         # TODO
+#         estimator = DeepTPPEstimator(
+#             prediction_interval_length=prediction_length,
+#             context_interval_length=context_length,
+#             freq=freq,
+#             trainer=trainer,
+#             batch_size=batch_size,
+#             num_marks=len(cardinality) if cardinality is not None else 0,
+#         )
+        pass
     elif args.algo_name == 'Transformer':
         estimator = TransformerEstimator(
             freq=freq,
@@ -487,10 +515,11 @@ def parse_args():
     parser.add_argument('--clip-gradient', type=int, default=10)
     parser.add_argument('--weight-decay', type=float, default=1e-8)
     parser.add_argument('--init', type=str, default='xavier')
-    parser.add_argument('--hybridize', action='store_true', default=False)
+    parser.add_argument('--hybridize', action='store_true', default=False)  # TODO default True/False?
     
     parser.add_argument('--use-feat-dynamic-real', action='store_true', default=False)
     parser.add_argument('--use-feat-static-cat', action='store_true', default=False)
+    parser.add_argument('--use-past-feat-dynamic-real', action='store_true', default=False)
     parser.add_argument('--cardinality', type=str, default='')
     
     parser.add_argument('--use-log1p', action='store_true', default=False)
