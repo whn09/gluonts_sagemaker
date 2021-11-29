@@ -7,6 +7,8 @@ import flask
 
 from pathlib import Path
 
+import numpy as np
+
 from gluonts.dataset.common import ListDataset
 from gluonts.dataset.field_names import FieldName
 from gluonts.model.predictor import Predictor
@@ -18,10 +20,11 @@ if not os.path.exists(model_dir):
     model_dir = 'model'
 sub_dirs = os.listdir(model_dir)
 for sub_dir in sub_dirs:
-    if sub_dir in ['CanonicalRNN', 'DeepFactor', 'DeepAR', 'DeepState', 'DeepVAR', 'GaussianProcess', 'GPVAR', 'LSTNet', 'NBEATS', 'MQCNN', 'MQRNN', 'RNN2QR', 'Seq2Seq', 'SimpleFeedForward', 'Transformer', 'WaveNet', 'Naive2', 'NPTS', 'Prophet', 'ARIMA', 'ETS', 'TBATS', 'CROSTON', 'MLP', 'SeasonalNaive']:  # TODO add all algo_names
+    if sub_dir in ['CanonicalRNN', 'DeepFactor', 'DeepAR', 'DeepState', 'DeepVAR', 'GaussianProcess', 'GPVAR', 'LSTNet', 'NBEATS', 'DeepRenewalProcess', 'Tree', 'SelfAttention', 'MQCNN', 'MQRNN', 'RNN2QR', 'Seq2Seq', 'SimpleFeedForward', 'TemporalFusionTransformer', 'PointProcessGluon', 'Transformer', 'WaveNet', 'Naive2', 'NPTS', 'Prophet', 'ARIMA', 'ETS', 'TBATS', 'CROSTON', 'MLP', 'SeasonalNaive']:  # TODO add all algo_names
         model_dir = os.path.join(model_dir, sub_dir)
         break
 predictor = Predictor.deserialize(Path(model_dir))
+print('model init done.')
 
 def parse_data(dataset):
     data = []
@@ -70,6 +73,10 @@ def invocations():
         target_quantile = float(data['target_quantile'])
     else:
         target_quantile = 0.5
+    if 'use_log1p' in data:
+        use_log1p = data['use_log1p']
+    else:
+        use_log1p = False
     if 'instances' in data:
         instances = data['instances']
     else:
@@ -82,7 +89,10 @@ def invocations():
 
     inference_result = predictor.predict(ds)
     
-    result = [resulti.quantile(target_quantile).tolist() for resulti in inference_result]
+    if use_log1p:
+        result = [np.expm1(resulti.quantile(target_quantile)).tolist() for resulti in inference_result]
+    else:
+        result = [resulti.quantile(target_quantile).tolist() for resulti in inference_result]
     
     _payload = json.dumps(result, ensure_ascii=False)
 

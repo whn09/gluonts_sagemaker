@@ -13,11 +13,8 @@
 
 # For more information on creating a Dockerfile
 # https://docs.docker.com/compose/gettingstarted/#step-2-create-a-dockerfile
-FROM 727897471807.dkr.ecr.cn-northwest-1.amazonaws.com.cn/mxnet-training:1.6.0-cpu-py3
-# FROM 727897471807.dkr.ecr.cn-northwest-1.amazonaws.com.cn/mxnet-inference:1.6.0-cpu-py3
-# FROM 763104351884.dkr.ecr.us-east-1.amazonaws.com/mxnet-training:1.8.0-cpu-py37-ubuntu16.04
-# FROM 763104351884.dkr.ecr.us-east-1.amazonaws.com/mxnet-training:1.7.0-cpu-py36-ubuntu16.04
-# FROM 763104351884.dkr.ecr.us-east-1.amazonaws.com/mxnet-training:1.6.0-cpu-py36-ubuntu16.04
+# FROM 727897471807.dkr.ecr.cn-northwest-1.amazonaws.com.cn/mxnet-training:1.6.0-cpu-py3
+FROM 763104351884.dkr.ecr.us-east-1.amazonaws.com/mxnet-training:1.6.0-cpu-py36-ubuntu16.04
 
 ### Install nginx notebook
 RUN apt-get -y update && apt-get install -y --no-install-recommends \
@@ -25,11 +22,6 @@ RUN apt-get -y update && apt-get install -y --no-install-recommends \
          nginx \
          ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-    
-COPY ./requirements.txt /opt/ml/code/
-
-RUN pip config set global.index-url https://opentuna.cn/pypi/web/simple/
-RUN pip install -r /opt/ml/code/requirements.txt
 
 # update indices
 RUN apt update -qq
@@ -38,13 +30,18 @@ RUN apt install -y --no-install-recommends software-properties-common dirmngr ap
 # import the signing key (by Michael Rutter) for these repo
 RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys E298A3A825C0D65DFD57CBB651716619E084DAB9
 # add the R 4.0 repo from CRAN -- adjust 'focal' to 'groovy' or 'bionic' as needed
-# RUN add-apt-repository "deb https://cloud.r-project.org/bin/linux/ubuntu $(lsb_release -cs)-cran35/"
-RUN add-apt-repository "deb https://opentuna.cn/CRAN/bin/linux/ubuntu/ $(lsb_release -cs)-cran35/"
+# RUN add-apt-repository "deb https://opentuna.cn/CRAN/bin/linux/ubuntu/ $(lsb_release -cs)-cran35/"
+RUN add-apt-repository "deb https://cloud.r-project.org/bin/linux/ubuntu $(lsb_release -cs)-cran35/"
 RUN apt update -qq
 RUN apt install -y --no-install-recommends r-base r-base-dev
 RUN apt install -y libcurl4-openssl-dev
 RUN R -e 'install.packages(c("forecast", "nnfor"), repos="https://cloud.r-project.org", dependencies=TRUE)'
 RUN pip install 'rpy2>=2.9.*,<3.*'
+
+COPY ./requirements.txt /opt/ml/code/
+
+# RUN pip config set global.index-url https://opentuna.cn/pypi/web/simple/
+RUN pip install -r /opt/ml/code/requirements.txt
 
 ENV PATH="/opt/ml/code:${PATH}"
 

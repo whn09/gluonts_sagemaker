@@ -1,6 +1,7 @@
 gluonts
 pystan==2.14
 fbprophet
+xgboost
 statsmodels
 flask 
 gunicorn

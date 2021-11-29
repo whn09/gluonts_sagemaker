@@ -27,8 +27,13 @@ from gluonts.model.gp_forecaster import GaussianProcessEstimator
 from gluonts.model.gpvar import GPVAREstimator
 from gluonts.model.lstnet import LSTNetEstimator
 from gluonts.model.n_beats import NBEATSEstimator
+from gluonts.model.renewal import DeepRenewalProcessEstimator
+from gluonts.model.rotbaum import TreeEstimator, TreePredictor
+from gluonts.model.san import SelfAttentionEstimator
 from gluonts.model.seq2seq import MQCNNEstimator, MQRNNEstimator, RNN2QRForecaster, Seq2SeqEstimator
 from gluonts.model.simple_feedforward import SimpleFeedForwardEstimator
+from gluonts.model.tft import TemporalFusionTransformerEstimator
+from gluonts.model.tpp import PointProcessGluonPredictor
 from gluonts.model.transformer import TransformerEstimator
 from gluonts.model.wavenet import WaveNetEstimator
 
@@ -65,10 +70,13 @@ def load_json(filename):
 # Training methods                                             #
 # ------------------------------------------------------------ #
 
-def parse_data(dataset):
+def parse_data(dataset, use_log1p=False):
     data = []
     for t in dataset:
-        datai = {FieldName.TARGET: t['target'], FieldName.START: t['start']}
+        if use_log1p:
+            datai = {FieldName.TARGET: np.log1p(t['target']), FieldName.START: t['start']}
+        else:
+            datai = {FieldName.TARGET: t['target'], FieldName.START: t['start']}
         if 'id' in t:
             datai[FieldName.ITEM_ID] = t['id']
         if 'cat' in t:
@@ -79,34 +87,53 @@ def parse_data(dataset):
     return data
 
 def train(args):
-    freq = args.freq  # '1H'
-    prediction_length = args.prediction_length  # 3*24
-    context_length = args.context_length  # 7*24
+    freq = args.freq
+    prediction_length = args.prediction_length
+    context_length = args.context_length
+    use_feat_dynamic_real = args.use_feat_dynamic_real
+    use_feat_static_cat = args.use_feat_static_cat
+    use_log1p = args.use_log1p
+    
+    print('freq:', freq)
+    print('prediction_length:', prediction_length)
+    print('context_length:', context_length)
+    print('use_feat_dynamic_real:', use_feat_dynamic_real)
+    print('use_feat_static_cat:', use_feat_static_cat)
+    print('use_log1p:', use_log1p)
+    
+    batch_size = args.batch_size
+    print('batch_size:', batch_size)
 
     train = load_json(os.path.join(args.train, 'train_'+freq+'.json'))
     test = load_json(os.path.join(args.test, 'test_'+freq+'.json'))
-#     predict = load_json(os.path.join(args.predict, 'predict_'+freq+'.json'))
     
     num_timeseries = len(train)
     print('num_timeseries:', num_timeseries)
 
-    train_ds = ListDataset(parse_data(train), freq=freq)
-    test_ds = ListDataset(parse_data(test), freq=freq)
-#     predict_ds = ListDataset(parse_data(predict), freq=freq)  
+    train_ds = ListDataset(parse_data(train, use_log1p=use_log1p), freq=freq)
+    test_ds = ListDataset(parse_data(test, use_log1p=use_log1p), freq=freq)
     
     predictor = None
     
-    trainer= Trainer(ctx="cpu", epochs=args.epochs, learning_rate=args.learning_rate, batch_size=args.batch_size, num_batches_per_epoch=args.num_batches_per_epoch)
+    trainer= Trainer(ctx="cpu", 
+                    epochs=args.epochs, 
+                    num_batches_per_epoch=args.num_batches_per_epoch,
+                    learning_rate=args.learning_rate, 
+                    learning_rate_decay_factor=args.learning_rate_decay_factor,
+                    patience=args.patience,
+                    minimum_learning_rate=args.minimum_learning_rate,
+                    clip_gradient=args.clip_gradient,
+                    weight_decay=args.weight_decay,
+                    init=args.init,
+                    hybridize=args.hybridize)
+    print('trainer:', trainer)
     
     cardinality = None
     if args.cardinality != '':
-        cardinality = args.cardinality.split(',')
+        cardinality = args.cardinality.replace(' ', '').replace('[', '').replace(']', '').split(',')
         for i in range(len(cardinality)):
             cardinality[i] = int(cardinality[i])
     print('cardinality:', cardinality)
-    
-    print('use_feat_dynamic_real:', args.use_feat_dynamic_real)
-    print('use_feat_static_cat:', args.use_feat_static_cat)
     
     if args.algo_name == 'CanonicalRNN':
         estimator = CanonicalRNNEstimator(
@@ -114,6 +141,7 @@ def train(args):
             prediction_length=prediction_length,
             context_length=context_length,
             trainer=trainer,
+            batch_size=batch_size,
         )
     elif args.algo_name == 'DeepFactor':
         estimator = DeepFactorEstimator(
@@ -121,25 +149,49 @@ def train(args):
             prediction_length=prediction_length,
             context_length=context_length,
             trainer=trainer,
+            batch_size=batch_size,
         )
     elif args.algo_name == 'DeepAR':
         estimator = DeepAREstimator(
-            freq=freq,
-            prediction_length=prediction_length,
-            context_length=context_length,
-            trainer=trainer,
-            use_feat_dynamic_real=args.use_feat_dynamic_real,
-            use_feat_static_cat=args.use_feat_static_cat,
-            cardinality=cardinality
+            freq = freq,  # – Frequency of the data to train on and predict
+            prediction_length = prediction_length,  # – Length of the prediction horizon
+            trainer = trainer,  # – Trainer object to be used (default: Trainer())
+            context_length = context_length,  # – Number of steps to unroll the RNN for before computing predictions (default: None, in which case context_length = prediction_length)
+            num_layers = 2,  # – Number of RNN layers (default: 2)
+            num_cells = 40,  # – Number of RNN cells for each layer (default: 40)
+            cell_type = 'lstm',  # – Type of recurrent cells to use (available: ‘lstm’ or ‘gru’; default: ‘lstm’)
+            dropoutcell_type = 'ZoneoutCell',  # – Type of dropout cells to use (available: ‘ZoneoutCell’, ‘RNNZoneoutCell’, ‘VariationalDropoutCell’ or ‘VariationalZoneoutCell’; default: ‘ZoneoutCell’)
+            dropout_rate = 0.1,  # – Dropout regularization parameter (default: 0.1)
+            use_feat_dynamic_real = use_feat_dynamic_real,  # – Whether to use the feat_dynamic_real field from the data (default: False)
+            use_feat_static_cat = use_feat_static_cat,  # – Whether to use the feat_static_cat field from the data (default: False)
+            use_feat_static_real = False,  # – Whether to use the feat_static_real field from the data (default: False)
+            cardinality = cardinality,  # – Number of values of each categorical feature. This must be set if use_feat_static_cat == True (default: None)
+            embedding_dimension = [min(50, (cat+1)//2) for cat in cardinality],  # – Dimension of the embeddings for categorical features (default: [min(50, (cat+1)//2) for cat in cardinality])
+        #     distr_output = StudentTOutput(),  # – Distribution to use to evaluate observations and sample predictions (default: StudentTOutput())
+        #     scaling = True,  # – Whether to automatically scale the target values (default: true)
+        #     lags_seq = None,  # – Indices of the lagged target values to use as inputs of the RNN (default: None, in which case these are automatically determined based on freq)
+        #     time_features = None,  # – Time features to use as inputs of the RNN (default: None, in which case these are automatically determined based on freq)
+        #     num_parallel_samples = 100,  # – Number of evaluation samples per time series to increase parallelism during inference. This is a model optimization that does not affect the accuracy (default: 100)
+        #     imputation_method = None,  # – One of the methods from ImputationStrategy
+        #     train_sampler = None,  # – Controls the sampling of windows during training.
+        #     validation_sampler = None,  # – Controls the sampling of windows during validation.
+        #     alpha = None,  # – The scaling coefficient of the activation regularization
+        #     beta = None,  # – The scaling coefficient of the temporal activation regularization
+            batch_size = batch_size,  # – The size of the batches to be used training and prediction.
+        #     minimum_scale = None,  # – The minimum scale that is returned by the MeanScaler
+        #     default_scale = None,  # – Default scale that is applied if the context length window is completely unobserved. If not set, the scale in this case will be the mean scale in the batch.
+        #     impute_missing_values = None,  # – Whether to impute the missing values during training by using the current model parameters. Recommended if the dataset contains many missing values. However, this is a lot slower than the default mode.
+        #     num_imputation_samples = None,  # – How many samples to use to impute values when impute_missing_values=True
         )
     elif args.algo_name == 'DeepState':
         estimator = DeepStateEstimator(
             freq=freq,
             prediction_length=prediction_length,
             trainer=trainer,
+            batch_size=batch_size,
             use_feat_dynamic_real=args.use_feat_dynamic_real,
             use_feat_static_cat=args.use_feat_static_cat,
-            cardinality=cardinality
+            cardinality=cardinality,
         )
     elif args.algo_name == 'DeepVAR':
         estimator = DeepVAREstimator(  # use multi
@@ -147,7 +199,8 @@ def train(args):
             prediction_length=prediction_length,
             context_length=context_length,
             trainer=trainer,
-            target_dim=96
+            batch_size=batch_size,
+            target_dim=96,
         )
     elif args.algo_name == 'GaussianProcess':
         estimator = GaussianProcessEstimator(
@@ -155,7 +208,8 @@ def train(args):
             prediction_length=prediction_length,
             context_length=context_length,
             trainer=trainer,
-            cardinality=cardinality
+            batch_size=batch_size,
+            cardinality=cardinality,
         )
     elif args.algo_name == 'GPVAR':
         estimator = GPVAREstimator(  # use multi
@@ -163,7 +217,8 @@ def train(args):
             prediction_length=prediction_length,
             context_length=context_length,
             trainer=trainer,
-            target_dim=96
+            batch_size=batch_size,
+            target_dim=96,
         )
     elif args.algo_name == 'LSTNet':
         estimator = LSTNetEstimator(  # use multi
@@ -175,6 +230,7 @@ def train(args):
             ar_window=4,
             channels=72,
             trainer=trainer,
+            batch_size=batch_size,
         )
     elif args.algo_name == 'NBEATS':
         estimator = NBEATSEstimator(
@@ -182,6 +238,44 @@ def train(args):
             prediction_length=prediction_length,
             context_length=context_length,
             trainer=trainer,
+            batch_size=batch_size,
+        )
+    elif args.algo_name == 'DeepRenewalProcess':
+        estimator = DeepRenewalProcessEstimator(
+            freq=freq,
+            prediction_length=prediction_length,
+            context_length=context_length,
+            trainer=trainer,
+            batch_size=batch_size,
+        )
+    elif args.algo_name == 'Tree':
+        estimator = TreePredictor(
+            freq = freq,
+            prediction_length = prediction_length,
+            context_length = context_length,
+            n_ignore_last = 0,
+            lead_time = 0,
+            max_n_datapts = 1000000,
+            min_bin_size = 100,  # Used only for "QRX" method.
+            use_feat_static_real = False,
+            use_feat_dynamic_cat = False,
+            use_feat_dynamic_real = use_feat_dynamic_real,
+            cardinality = cardinality,
+            one_hot_encode = False,
+            model_params = {'eta': 0.1, 'max_depth': 6, 'silent': 0, 'nthread': -1, 'n_jobs': -1, 'gamma': 1, 'subsample': 0.9, 'min_child_weight': 1, 'colsample_bytree': 0.9, 'lambda': 1, 'booster': 'gbtree'},
+            max_workers = 4,  # default: None
+            method = "QRX",  # "QRX",  "QuantileRegression", "QRF"
+            quantiles=None,  # Used only for "QuantileRegression" method.
+            model=None,
+            seed=None,
+        )
+    elif args.algo_name == 'SelfAttention':
+        estimator = SelfAttentionEstimator(
+            freq=freq,
+            prediction_length=prediction_length,
+            context_length=context_length,
+            trainer=trainer,
+            batch_size=batch_size,
         )
     elif args.algo_name == 'MQCNN':
         estimator = MQCNNEstimator(
@@ -189,6 +283,7 @@ def train(args):
             prediction_length=prediction_length,
             context_length=context_length,
             trainer=trainer,
+            batch_size=batch_size,
         )
     elif args.algo_name == 'MQRNN':
         estimator = MQRNNEstimator(
@@ -196,6 +291,7 @@ def train(args):
             prediction_length=prediction_length,
             context_length=context_length,
             trainer=trainer,
+            batch_size=batch_size,
         )
     elif args.algo_name == 'RNN2QR':
         # # TODO
@@ -233,20 +329,51 @@ def train(args):
             context_length=context_length,
             freq=freq,
             trainer=trainer,
+            batch_size=batch_size,
+        )
+    elif args.algo_name == 'TemporalFusionTransformer':
+        estimator = TemporalFusionTransformerEstimator(
+            prediction_length=prediction_length,
+            context_length=context_length,
+            freq=freq,
+            trainer=trainer,
+            batch_size=batch_size,
+            hidden_dim = 32, 
+            variable_dim = None, 
+            num_heads = 4, 
+            num_outputs = 3, 
+            num_instance_per_series = 100, 
+            dropout_rate = 0.1, 
+        #     time_features = [], 
+        #     static_cardinalities = {}, 
+        #     dynamic_cardinalities = {}, 
+        #     static_feature_dims = {}, 
+        #     dynamic_feature_dims = {}, 
+        #     past_dynamic_features = []
+        )
+    elif args.algo_name == 'PointProcessGluon':
+        estimator = PointProcessGluonPredictor(
+            prediction_length=prediction_length,
+            context_length=context_length,
+            freq=freq,
+            trainer=trainer,
+            batch_size=batch_size,
         )
     elif args.algo_name == 'Transformer':
         estimator = TransformerEstimator(
             freq=freq,
             prediction_length=prediction_length,
             trainer=trainer,
-            cardinality=cardinality
+            batch_size=batch_size,
+            cardinality=cardinality,
         )
     elif args.algo_name == 'WaveNet':
         estimator = WaveNetEstimator(
             freq=freq,
             prediction_length=prediction_length,
             trainer=trainer,
-            cardinality=cardinality
+            batch_size=batch_size,
+            cardinality=cardinality,
         )
     elif args.algo_name == 'Naive2':
         # TODO Multiplicative seasonality is not appropriate for zero and negative values
@@ -305,25 +432,24 @@ def train(args):
                 grouper_train = MultivariateGrouper(max_target_dim=num_timeseries)
                 train_ds_multi = grouper_train(train_ds)
                 test_ds_multi = grouper_train(test_ds)
-                # predict_ds_multi = grouper_train(predict_ds)
                 predictor = estimator.train(train_ds_multi, test_ds_multi)
             except Exception as e:
                 print(e)
 
-#     forecast_it, ts_it = make_evaluation_predictions(
-#         dataset=predict_ds,  # test dataset
-#         predictor=predictor,  # predictor
-#         num_samples=100,  # number of sample paths we want for evaluation
-#     )
+    forecast_it, ts_it = make_evaluation_predictions(
+        dataset=test_ds,  # test dataset
+        predictor=predictor,  # predictor
+        num_samples=100,  # number of sample paths we want for evaluation
+    )
 
-#     forecasts = list(forecast_it)
-#     tss = list(ts_it)
+    forecasts = list(forecast_it)
+    tss = list(ts_it)
 #     print(len(forecasts), len(tss))
     
-#     evaluator = Evaluator(quantiles=[0.1, 0.5, 0.9])
-#     agg_metrics, item_metrics = evaluator(iter(tss), iter(forecasts), num_series=len(predict_ds))
+    evaluator = Evaluator(quantiles=[0.1, 0.5, 0.9])
+    agg_metrics, item_metrics = evaluator(iter(tss), iter(forecasts), num_series=num_timeseries)
 
-#     print(json.dumps(agg_metrics, indent=4))
+    print(json.dumps(agg_metrics, indent=4))
     
     model_dir = os.path.join(args.model_dir, args.algo_name)
     if not os.path.exists(model_dir):
@@ -341,7 +467,6 @@ def parse_args():
     parser.add_argument('--algo-name', type=str, default='DeepAR')
     parser.add_argument('--model-dir', type=str, default='/opt/ml/model')  # os.environ['SM_MODEL_DIR']
     parser.add_argument('--output-dir', type=str, default='/opt/ml/output')  # os.environ['SM_MODEL_DIR']
-#     parser.add_argument('--train', type=str, default='/opt/ml/input/data/training')  # os.environ['SM_CHANNEL_TRAINING']
     parser.add_argument('--train', type=str, default='/opt/ml/input/data/train')  # os.environ['SM_CHANNEL_TRAINING']
     parser.add_argument('--test', type=str, default='/opt/ml/input/data/test')  # os.environ['SM_CHANNEL_TEST']
 #     parser.add_argument('--predict', type=str, default='/opt/ml/input/data/predict')  # os.environ['SM_CHANNEL_PREDICT']
@@ -352,13 +477,23 @@ def parse_args():
     parser.add_argument('--context-length', type=int, default=7*24)
 
     parser.add_argument('--batch-size', type=int, default=32)
+    
     parser.add_argument('--epochs', type=int, default=200)
-    parser.add_argument('--learning-rate', type=float, default=0.001)
     parser.add_argument('--num-batches-per-epoch', type=int, default=100)
+    parser.add_argument('--learning-rate', type=float, default=0.001)
+    parser.add_argument('--learning-rate-decay-factor', type=float, default=0.5)
+    parser.add_argument('--patience', type=int, default=10)
+    parser.add_argument('--minimum-learning-rate', type=float, default=5e-5)
+    parser.add_argument('--clip-gradient', type=int, default=10)
+    parser.add_argument('--weight-decay', type=float, default=1e-8)
+    parser.add_argument('--init', type=str, default='xavier')
+    parser.add_argument('--hybridize', action='store_true', default=False)
     
     parser.add_argument('--use-feat-dynamic-real', action='store_true', default=False)
     parser.add_argument('--use-feat-static-cat', action='store_true', default=False)
     parser.add_argument('--cardinality', type=str, default='')
+    
+    parser.add_argument('--use-log1p', action='store_true', default=False)
 
     return parser.parse_args()
 
