@@ -33,7 +33,7 @@ from gluonts.model.san import SelfAttentionEstimator
 from gluonts.model.seq2seq import MQCNNEstimator, MQRNNEstimator, RNN2QRForecaster, Seq2SeqEstimator
 from gluonts.model.simple_feedforward import SimpleFeedForwardEstimator
 from gluonts.model.tft import TemporalFusionTransformerEstimator
-from gluonts.model.tpp import PointProcessGluonPredictor
+from gluonts.model.tpp import DeepTPPEstimator
 from gluonts.model.transformer import TransformerEstimator
 from gluonts.model.wavenet import WaveNetEstimator
 
@@ -141,7 +141,6 @@ def train(args):
             prediction_length=prediction_length,
             context_length=context_length,
             trainer=trainer,
-            batch_size=batch_size,
         )
     elif args.algo_name == 'DeepFactor':
         estimator = DeepFactorEstimator(
@@ -166,7 +165,7 @@ def train(args):
             use_feat_static_cat = use_feat_static_cat,  # – Whether to use the feat_static_cat field from the data (default: False)
             use_feat_static_real = False,  # – Whether to use the feat_static_real field from the data (default: False)
             cardinality = cardinality,  # – Number of values of each categorical feature. This must be set if use_feat_static_cat == True (default: None)
-            embedding_dimension = [min(50, (cat+1)//2) for cat in cardinality],  # – Dimension of the embeddings for categorical features (default: [min(50, (cat+1)//2) for cat in cardinality])
+            embedding_dimension = [min(50, (cat+1)//2) for cat in cardinality] if cardinality is not None else None,  # – Dimension of the embeddings for categorical features (default: [min(50, (cat+1)//2) for cat in cardinality])
         #     distr_output = StudentTOutput(),  # – Distribution to use to evaluate observations and sample predictions (default: StudentTOutput())
         #     scaling = True,  # – Whether to automatically scale the target values (default: true)
         #     lags_seq = None,  # – Indices of the lagged target values to use as inputs of the RNN (default: None, in which case these are automatically determined based on freq)
@@ -247,6 +246,8 @@ def train(args):
             context_length=context_length,
             trainer=trainer,
             batch_size=batch_size,
+            num_cells=40,
+            num_layers=2,
         )
     elif args.algo_name == 'Tree':
         estimator = TreePredictor(
@@ -351,13 +352,14 @@ def train(args):
         #     dynamic_feature_dims = {}, 
         #     past_dynamic_features = []
         )
-    elif args.algo_name == 'PointProcessGluon':
-        estimator = PointProcessGluonPredictor(
-            prediction_length=prediction_length,
-            context_length=context_length,
+    elif args.algo_name == 'DeepTPP':
+        estimator = DeepTPPEstimator(
+            prediction_interval_length=prediction_length,
+            context_interval_length=context_length,
             freq=freq,
             trainer=trainer,
             batch_size=batch_size,
+            num_marks=len(cardinality) if cardinality is not None else 0,
         )
     elif args.algo_name == 'Transformer':
         estimator = TransformerEstimator(
@@ -447,7 +449,7 @@ def train(args):
 #     print(len(forecasts), len(tss))
     
     evaluator = Evaluator(quantiles=[0.1, 0.5, 0.9])
-    agg_metrics, item_metrics = evaluator(iter(tss), iter(forecasts), num_series=num_timeseries)
+    agg_metrics, item_metrics = evaluator(iter(tss), iter(forecasts), num_series=len(test_ds))
 
     print(json.dumps(agg_metrics, indent=4))
     
@@ -469,8 +471,6 @@ def parse_args():
     parser.add_argument('--output-dir', type=str, default='/opt/ml/output')  # os.environ['SM_MODEL_DIR']
     parser.add_argument('--train', type=str, default='/opt/ml/input/data/train')  # os.environ['SM_CHANNEL_TRAINING']
     parser.add_argument('--test', type=str, default='/opt/ml/input/data/test')  # os.environ['SM_CHANNEL_TEST']
-#     parser.add_argument('--predict', type=str, default='/opt/ml/input/data/predict')  # os.environ['SM_CHANNEL_PREDICT']
-    
     
     parser.add_argument('--freq', type=str, default='1H')
     parser.add_argument('--prediction-length', type=int, default=3*24)
