@@ -89,7 +89,7 @@ def parse_data(dataset, use_log1p=False):
     return data
 
 def train(args):
-    freq = args.freq
+    freq = args.freq.replace('"', '')
     prediction_length = args.prediction_length
     context_length = args.context_length
     use_feat_dynamic_real = args.use_feat_dynamic_real
@@ -128,13 +128,13 @@ def train(args):
                     minimum_learning_rate=args.minimum_learning_rate,
                     clip_gradient=args.clip_gradient,
                     weight_decay=args.weight_decay,
-                    init=args.init,
+                    init=args.init.replace('"', ''),
                     hybridize=args.hybridize)
     print('trainer:', trainer)
     
     cardinality = None
     if args.cardinality != '':
-        cardinality = args.cardinality.replace(' ', '').replace('[', '').replace(']', '').split(',')
+        cardinality = args.cardinality.replace('"', '').replace(' ', '').replace('[', '').replace(']', '').split(',')
         for i in range(len(cardinality)):
             cardinality[i] = int(cardinality[i])
     print('cardinality:', cardinality)
@@ -142,7 +142,10 @@ def train(args):
     embedding_dimension = [min(50, (cat+1)//2) for cat in cardinality] if cardinality is not None else None
     print('embedding_dimension:', embedding_dimension)
     
-    if args.algo_name == 'CanonicalRNN':
+    algo_name = args.algo_name.replace('"', '')
+    print('algo_name:', algo_name)
+    
+    if algo_name == 'CanonicalRNN':
         estimator = CanonicalRNNEstimator(
             freq=freq,
             prediction_length=prediction_length,
@@ -156,7 +159,7 @@ def train(args):
             cardinality=cardinality,
             embedding_dimension=10,
         )
-    elif args.algo_name == 'DeepFactor':
+    elif algo_name == 'DeepFactor':
         estimator = DeepFactorEstimator(
             freq=freq,
             prediction_length=prediction_length,
@@ -166,7 +169,7 @@ def train(args):
             cardinality=cardinality,
             embedding_dimension=10,
         )
-    elif args.algo_name == 'DeepAR':
+    elif algo_name == 'DeepAR':
         estimator = DeepAREstimator(
             freq = freq,  # – Frequency of the data to train on and predict
             prediction_length = prediction_length,  # – Length of the prediction horizon
@@ -198,7 +201,7 @@ def train(args):
         #     impute_missing_values = None,  # – Whether to impute the missing values during training by using the current model parameters. Recommended if the dataset contains many missing values. However, this is a lot slower than the default mode.
         #     num_imputation_samples = None,  # – How many samples to use to impute values when impute_missing_values=True
         )
-    elif args.algo_name == 'DeepState':
+    elif algo_name == 'DeepState':
         estimator = DeepStateEstimator(
             freq=freq,
             prediction_length=prediction_length,
@@ -208,7 +211,7 @@ def train(args):
             use_feat_static_cat=use_feat_static_cat,
             cardinality=cardinality,
         )
-    elif args.algo_name == 'DeepVAR':
+    elif algo_name == 'DeepVAR':
         estimator = DeepVAREstimator(  # use multi
             freq=freq,
             prediction_length=prediction_length,
@@ -217,7 +220,7 @@ def train(args):
             batch_size=batch_size,
             target_dim=96,
         )
-    elif args.algo_name == 'GaussianProcess':
+    elif algo_name == 'GaussianProcess':
 #         # TODO
 #         estimator = GaussianProcessEstimator(
 #             freq=freq,
@@ -228,7 +231,7 @@ def train(args):
 #             cardinality=num_timeseries,
 #         )
         pass
-    elif args.algo_name == 'GPVAR':
+    elif algo_name == 'GPVAR':
         estimator = GPVAREstimator(  # use multi
             freq=freq,
             prediction_length=prediction_length,
@@ -237,7 +240,7 @@ def train(args):
             batch_size=batch_size,
             target_dim=96,
         )
-    elif args.algo_name == 'LSTNet':
+    elif algo_name == 'LSTNet':
         estimator = LSTNetEstimator(  # use multi
             freq=freq,
             prediction_length=prediction_length,
@@ -249,7 +252,7 @@ def train(args):
             trainer=trainer,
             batch_size=batch_size,
         )
-    elif args.algo_name == 'NBEATS':
+    elif algo_name == 'NBEATS':
         estimator = NBEATSEstimator(
             freq=freq,
             prediction_length=prediction_length,
@@ -257,7 +260,7 @@ def train(args):
             trainer=trainer,
             batch_size=batch_size,
         )
-    elif args.algo_name == 'DeepRenewalProcess':
+    elif algo_name == 'DeepRenewalProcess':
         estimator = DeepRenewalProcessEstimator(
             freq=freq,
             prediction_length=prediction_length,
@@ -267,7 +270,7 @@ def train(args):
             num_cells=40,
             num_layers=2,
         )
-    elif args.algo_name == 'Tree':
+    elif algo_name == 'Tree':
         estimator = TreePredictor(
             freq = freq,
             prediction_length = prediction_length,
@@ -288,7 +291,7 @@ def train(args):
             model=None,
             seed=None,
         )
-    elif args.algo_name == 'SelfAttention':
+    elif algo_name == 'SelfAttention':
 #         # TODO
 #         estimator = SelfAttentionEstimator(
 #             freq=freq,
@@ -298,7 +301,7 @@ def train(args):
 #             batch_size=batch_size,
 #         )
         pass
-    elif args.algo_name == 'MQCNN':
+    elif algo_name == 'MQCNN':
         estimator = MQCNNEstimator(
             freq=freq,
             prediction_length=prediction_length,
@@ -327,7 +330,7 @@ def train(args):
             num_forking=None,
             max_ts_len=None,
         )
-    elif args.algo_name == 'MQRNN':
+    elif algo_name == 'MQRNN':
         estimator = MQRNNEstimator(
             freq=freq,
             prediction_length=prediction_length,
@@ -335,7 +338,7 @@ def train(args):
             trainer=trainer,
             batch_size=batch_size,
         )
-    elif args.algo_name == 'Seq2Seq':
+    elif algo_name == 'Seq2Seq':
         # # TODO
         # estimator = Seq2SeqEstimator(
         #     freq=freq,
@@ -349,7 +352,7 @@ def train(args):
         #     decoder_mlp_static_dim=4
         # )
         pass
-    elif args.algo_name == 'SimpleFeedForward':
+    elif algo_name == 'SimpleFeedForward':
         estimator = SimpleFeedForwardEstimator(
             num_hidden_dimensions=[40, 40],
             prediction_length=prediction_length,
@@ -358,7 +361,7 @@ def train(args):
             trainer=trainer,
             batch_size=batch_size,
         )
-    elif args.algo_name == 'TemporalFusionTransformer':
+    elif algo_name == 'TemporalFusionTransformer':
         estimator = TemporalFusionTransformerEstimator(
             prediction_length=prediction_length,
             context_length=context_length,
@@ -378,7 +381,7 @@ def train(args):
         #     dynamic_feature_dims = {}, 
         #     past_dynamic_features = []
         )
-    elif args.algo_name == 'DeepTPP':
+    elif algo_name == 'DeepTPP':
 #         # TODO
 #         estimator = DeepTPPEstimator(
 #             prediction_interval_length=prediction_length,
@@ -389,7 +392,7 @@ def train(args):
 #             num_marks=len(cardinality) if cardinality is not None else 0,
 #         )
         pass
-    elif args.algo_name == 'Transformer':
+    elif algo_name == 'Transformer':
         estimator = TransformerEstimator(
             freq=freq,
             prediction_length=prediction_length,
@@ -397,7 +400,7 @@ def train(args):
             batch_size=batch_size,
             cardinality=cardinality,
         )
-    elif args.algo_name == 'WaveNet':
+    elif algo_name == 'WaveNet':
         estimator = WaveNetEstimator(
             freq=freq,
             prediction_length=prediction_length,
@@ -405,52 +408,52 @@ def train(args):
             batch_size=batch_size,
             cardinality=cardinality,
         )
-    elif args.algo_name == 'Naive2':
+    elif algo_name == 'Naive2':
         # TODO Multiplicative seasonality is not appropriate for zero and negative values
         predictor = Naive2Predictor(freq=freq, prediction_length=prediction_length, season_length=context_length)
-    elif args.algo_name == 'NPTS':
+    elif algo_name == 'NPTS':
         predictor = NPTSPredictor(freq=freq, prediction_length=prediction_length, context_length=context_length)
-    elif args.algo_name == 'Prophet':
+    elif algo_name == 'Prophet':
         def configure_model(model):
             model.add_seasonality(
                 name='weekly', period=7, fourier_order=3, prior_scale=0.1
             )
             return model
         predictor = ProphetPredictor(freq=freq, prediction_length=prediction_length, init_model=configure_model)
-    elif args.algo_name == 'ARIMA':
+    elif algo_name == 'ARIMA':
         predictor = RForecastPredictor(freq=freq,
                                       prediction_length=prediction_length,
                                       method_name='arima',
                                       period=context_length,
                                       trunc_length=len(train[0]['target']))
-    elif args.algo_name == 'ETS':
+    elif algo_name == 'ETS':
         predictor = RForecastPredictor(freq=freq,
                                       prediction_length=prediction_length,
                                       method_name='ets',
                                       period=context_length,
                                       trunc_length=len(train[0]['target']))
-    elif args.algo_name == 'TBATS':
+    elif algo_name == 'TBATS':
         predictor = RForecastPredictor(freq=freq,
                                       prediction_length=prediction_length,
                                       method_name='tbats',
                                       period=context_length,
                                       trunc_length=len(train[0]['target']))
-    elif args.algo_name == 'CROSTON':
+    elif algo_name == 'CROSTON':
         predictor = RForecastPredictor(freq=freq,
                                       prediction_length=prediction_length,
                                       method_name='croston',
                                       period=context_length,
                                       trunc_length=len(train[0]['target']))
-    elif args.algo_name == 'MLP':
+    elif algo_name == 'MLP':
         predictor = RForecastPredictor(freq=freq,
                                       prediction_length=prediction_length,
                                       method_name='mlp',
                                       period=context_length,
                                       trunc_length=len(train[0]['target']))
-    elif args.algo_name == 'SeasonalNaive':
+    elif algo_name == 'SeasonalNaive':
         predictor = SeasonalNaivePredictor(freq=freq, prediction_length=prediction_length)
     else:
-        print('[ERROR]:', args.algo_name, 'not supported')
+        print('[ERROR]:', algo_name, 'not supported')
         return
     
     if predictor is None:
@@ -481,7 +484,7 @@ def train(args):
 
     print(json.dumps(agg_metrics, indent=4))
     
-    model_dir = os.path.join(args.model_dir, args.algo_name)
+    model_dir = os.path.join(args.model_dir, algo_name)
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
     predictor.serialize(Path(model_dir))
@@ -523,6 +526,16 @@ def parse_args():
     parser.add_argument('--cardinality', type=str, default='')
     
     parser.add_argument('--use-log1p', action='store_true', default=False)
+    
+    parsed, unknown = parser.parse_known_args() # this is an 'internal' method
+    # which returns 'parsed', the same as what parse_args() would return
+    # and 'unknown', the remainder of that
+    # the difference to parse_args() is that it does not exit when it finds redundant arguments
+
+    for arg in unknown:
+        if arg.startswith(("-", "--")):
+            # you can pass any arguments to add_argument
+            parser.add_argument(arg, type=str)
 
     return parser.parse_args()
 

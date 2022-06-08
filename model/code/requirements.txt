@@ -1,9 +1,6 @@
-gluonts
 #pystan==2.14
 #fbprophet
 pystan==2.19.1.1
 prophet
 xgboost
 statsmodels
-flask 
-gunicorn
