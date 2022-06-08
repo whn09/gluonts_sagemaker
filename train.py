@@ -540,6 +540,71 @@ def parse_args():
     return parser.parse_args()
 
 
+def model_fn(model_dir):
+    sub_dirs = os.listdir(model_dir)
+    print('[DEBUG] sub_dirs:', sub_dirs)
+    for sub_dir in sub_dirs:
+        if sub_dir in ['CanonicalRNN', 'DeepFactor', 'DeepAR', 'DeepState', 'DeepVAR', 'GaussianProcess', 'GPVAR', 'LSTNet', 'NBEATS', 'DeepRenewalProcess', 'Tree', 'SelfAttention', 'MQCNN', 'MQRNN', 'Seq2Seq', 'SimpleFeedForward', 'TemporalFusionTransformer', 'DeepTPP', 'Transformer', 'WaveNet', 'Naive2', 'NPTS', 'Prophet', 'ARIMA', 'ETS', 'TBATS', 'CROSTON', 'MLP', 'SeasonalNaive']:  # TODO add all algo_names
+            model_dir = os.path.join(model_dir, sub_dir)
+            print('[DEBUG] algo_name:', sub_dir)
+            break
+    predictor = Predictor.deserialize(Path(model_dir))
+    print('[DEBUG] model init done.')
+    return predictor
+
+
+def input_fn(request_body, request_content_type):
+    print('[DEBUG] request_body:', type(request_body))
+    print('[DEBUG] request_content_type:', request_content_type)
+    
+    """An input_fn that loads a pickled tensor"""
+    if request_content_type == 'application/json':
+        data = json.loads(request_body)
+        return data
+    else:
+        # Handle other content-types here or raise an Exception
+        # if the content type is not supported.  
+        return request_body
+
+    
+def predict_fn(input_data, model):
+    print('[DEBUG] input_data type:', type(input_data), input_data)
+    if 'freq' in input_data:
+        freq = input_data['freq']
+    else:
+        freq = '1H'
+    if 'target_quantile' in input_data:
+        target_quantile = float(input_data['target_quantile'])
+    else:
+        target_quantile = 0.5
+    if 'use_log1p' in input_data:
+        use_log1p = input_data['use_log1p']
+    else:
+        use_log1p = False
+    if 'instances' in input_data:
+        instances = input_data['instances']
+    else:
+        if isinstance(input_data, list):
+            instances = input_data
+        elif isinstance(data, dict):
+            instances = [input_data]
+
+    ds = ListDataset(parse_data(instances), freq=freq)
+    
+    inference_result = model.predict(ds)
+    
+    if use_log1p:
+        result = [np.expm1(resulti.quantile(target_quantile)).tolist() for resulti in inference_result]
+    else:
+        result = [resulti.quantile(target_quantile).tolist() for resulti in inference_result]
+        
+    return result
+
+
+def output_fn(prediction, content_type):
+    return prediction
+
+
 if __name__ == '__main__':
     args = parse_args()
     
