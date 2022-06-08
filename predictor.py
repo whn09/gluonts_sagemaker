@@ -22,9 +22,10 @@ sub_dirs = os.listdir(model_dir)
 for sub_dir in sub_dirs:
     if sub_dir in ['CanonicalRNN', 'DeepFactor', 'DeepAR', 'DeepState', 'DeepVAR', 'GaussianProcess', 'GPVAR', 'LSTNet', 'NBEATS', 'DeepRenewalProcess', 'Tree', 'SelfAttention', 'MQCNN', 'MQRNN', 'Seq2Seq', 'SimpleFeedForward', 'TemporalFusionTransformer', 'DeepTPP', 'Transformer', 'WaveNet', 'Naive2', 'NPTS', 'Prophet', 'ARIMA', 'ETS', 'TBATS', 'CROSTON', 'MLP', 'SeasonalNaive']:  # TODO add all algo_names
         model_dir = os.path.join(model_dir, sub_dir)
+        print('[DEBUG] algo_name:', sub_dir)
         break
 predictor = Predictor.deserialize(Path(model_dir))
-print('model init done.')
+print('[DEBUG] model init done.')
 
 def parse_data(dataset):
     data = []
@@ -56,11 +57,11 @@ def invocations():
     it to a pandas data frame for internal use and then convert the predictions back to CSV (which really
     just means one prediction per line, since there's a single column.
     """
-    data = None
-    print("================ INVOCATIONS =================")
+#     data = None
+#     print("================ INVOCATIONS =================")
 
     #parse json in request
-    print ("<<<< flask.request.content_type", flask.request.content_type)
+#     print ("<<<< flask.request.content_type", flask.request.content_type)
 
     data = flask.request.data.decode('utf-8')
     data = json.loads(data)

@@ -1,7 +1,5 @@
-import sys
 import json
 import os
-import warnings
 
 from pathlib import Path
 
@@ -102,5 +100,6 @@ if __name__ == '__main__':
     model = model_fn('../')
     input_data = input_fn(json.dumps(data), 'application/json')
     result = predict_fn(input_data, model)
+    result = output_fn(result, 'application/json')
     print(len(result), len(result[0]))
     print(result)
