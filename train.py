@@ -542,20 +542,20 @@ def parse_args():
 
 def model_fn(model_dir):
     sub_dirs = os.listdir(model_dir)
-    print('[DEBUG] sub_dirs:', sub_dirs)
+#     print('[DEBUG] sub_dirs:', sub_dirs)
     for sub_dir in sub_dirs:
         if sub_dir in ['CanonicalRNN', 'DeepFactor', 'DeepAR', 'DeepState', 'DeepVAR', 'GaussianProcess', 'GPVAR', 'LSTNet', 'NBEATS', 'DeepRenewalProcess', 'Tree', 'SelfAttention', 'MQCNN', 'MQRNN', 'Seq2Seq', 'SimpleFeedForward', 'TemporalFusionTransformer', 'DeepTPP', 'Transformer', 'WaveNet', 'Naive2', 'NPTS', 'Prophet', 'ARIMA', 'ETS', 'TBATS', 'CROSTON', 'MLP', 'SeasonalNaive']:  # TODO add all algo_names
             model_dir = os.path.join(model_dir, sub_dir)
-            print('[DEBUG] algo_name:', sub_dir)
+#             print('[DEBUG] algo_name:', sub_dir)
             break
     predictor = Predictor.deserialize(Path(model_dir))
-    print('[DEBUG] model init done.')
+#     print('[DEBUG] model init done.')
     return predictor
 
 
 def input_fn(request_body, request_content_type):
-    print('[DEBUG] request_body:', type(request_body))
-    print('[DEBUG] request_content_type:', request_content_type)
+#     print('[DEBUG] request_body:', type(request_body))
+#     print('[DEBUG] request_content_type:', request_content_type)
     
     """An input_fn that loads a pickled tensor"""
     if request_content_type == 'application/json':
@@ -568,7 +568,7 @@ def input_fn(request_body, request_content_type):
 
     
 def predict_fn(input_data, model):
-    print('[DEBUG] input_data type:', type(input_data), input_data)
+#     print('[DEBUG] input_data type:', type(input_data), input_data)
     if 'freq' in input_data:
         freq = input_data['freq']
     else:
