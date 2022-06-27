@@ -39,7 +39,7 @@ from gluonts.model.wavenet import WaveNetEstimator
 
 from gluonts.mx.block.quantile_output import QuantileOutput
 from gluonts.mx.trainer import Trainer
-from gluonts.mx.block.encoder import Seq2SeqEncoder
+from gluonts.mx.block.encoder import *
 
 from gluonts.model.predictor import Predictor
 
@@ -116,6 +116,8 @@ def train(args):
 
     train_ds = ListDataset(parse_data(train, use_log1p=use_log1p), freq=freq)
     test_ds = ListDataset(parse_data(test, use_log1p=use_log1p), freq=freq)
+    print('train_ds:', next(iter(train_ds)))
+    print('test_ds:', next(iter(test_ds)))
     
     predictor = None
     
@@ -132,7 +134,7 @@ def train(args):
                     hybridize=args.hybridize)
     print('trainer:', trainer)
     
-    cardinality = None
+    cardinality = [1]
     if args.cardinality != '':
         cardinality = args.cardinality.replace('"', '').replace(' ', '').replace('[', '').replace(']', '').split(',')
         for i in range(len(cardinality)):
@@ -145,19 +147,20 @@ def train(args):
     algo_name = args.algo_name.replace('"', '')
     print('algo_name:', algo_name)
     
+    is_multivariant = False
+    
     if algo_name == 'CanonicalRNN':
         estimator = CanonicalRNNEstimator(
             freq=freq,
             prediction_length=prediction_length,
             context_length=context_length,
             trainer=trainer,
-            batch_size=batch_size,
             num_layers=5, 
             num_cells=50, 
             cell_type='lstm', 
             num_parallel_samples=100,
             cardinality=cardinality,
-            embedding_dimension=10,
+            embedding_dimension=embedding_dimension[0],
         )
     elif algo_name == 'DeepFactor':
         estimator = DeepFactorEstimator(
@@ -167,7 +170,7 @@ def train(args):
             trainer=trainer,
             batch_size=batch_size,
             cardinality=cardinality,
-            embedding_dimension=10,
+            embedding_dimension=embedding_dimension[0],
         )
     elif algo_name == 'DeepAR':
         estimator = DeepAREstimator(
@@ -210,28 +213,29 @@ def train(args):
             use_feat_dynamic_real=use_feat_dynamic_real,
             use_feat_static_cat=use_feat_static_cat,
             cardinality=cardinality,
+            embedding_dimension=embedding_dimension,
         )
-    elif algo_name == 'DeepVAR':
+    elif algo_name == 'DeepVAR':  # TODO only for multivariant, bug now
+        is_multivariant = True
         estimator = DeepVAREstimator(  # use multi
             freq=freq,
             prediction_length=prediction_length,
             context_length=context_length,
             trainer=trainer,
             batch_size=batch_size,
-            target_dim=96,
+            target_dim=num_timeseries,
         )
     elif algo_name == 'GaussianProcess':
-#         # TODO
-#         estimator = GaussianProcessEstimator(
-#             freq=freq,
-#             prediction_length=prediction_length,
-#             context_length=context_length,
-#             trainer=trainer,
-#             batch_size=batch_size,
-#             cardinality=num_timeseries,
-#         )
-        pass
-    elif algo_name == 'GPVAR':
+        estimator = GaussianProcessEstimator(
+            freq=freq,
+            prediction_length=prediction_length,
+            context_length=context_length,
+            trainer=trainer,
+            batch_size=batch_size,
+            cardinality=num_timeseries,
+        )
+    elif algo_name == 'GPVAR':  # TODO only for multivariant, bug now
+        is_multivariant = True
         estimator = GPVAREstimator(  # use multi
             freq=freq,
             prediction_length=prediction_length,
@@ -241,11 +245,12 @@ def train(args):
             target_dim=96,
         )
     elif algo_name == 'LSTNet':
+        is_multivariant = True
         estimator = LSTNetEstimator(  # use multi
             freq=freq,
             prediction_length=prediction_length,
             context_length=context_length,
-            num_series=96,
+            num_series=num_timeseries,
             skip_size=4,
             ar_window=4,
             channels=72,
@@ -282,7 +287,7 @@ def train(args):
             use_feat_static_real = False,
             use_feat_dynamic_cat = False,
             use_feat_dynamic_real = use_feat_dynamic_real,
-            cardinality = cardinality,
+#             cardinality = cardinality,
             one_hot_encode = False,
             model_params = {'eta': 0.1, 'max_depth': 6, 'silent': 0, 'nthread': -1, 'n_jobs': -1, 'gamma': 1, 'subsample': 0.9, 'min_child_weight': 1, 'colsample_bytree': 0.9, 'lambda': 1, 'booster': 'gbtree'},
             max_workers = 4,  # default: None
@@ -292,44 +297,85 @@ def train(args):
             seed=None,
         )
     elif algo_name == 'SelfAttention':
-#         # TODO
-#         estimator = SelfAttentionEstimator(
-#             freq=freq,
-#             prediction_length=prediction_length,
-#             context_length=context_length,
-#             trainer=trainer,
-#             batch_size=batch_size,
-#         )
-        pass
-    elif algo_name == 'MQCNN':
-        estimator = MQCNNEstimator(
+        # TODO: bug [KeyError: 'feat_static_cat']
+        estimator = SelfAttentionEstimator(
             freq=freq,
             prediction_length=prediction_length,
             context_length=context_length,
             trainer=trainer,
             batch_size=batch_size,
-            use_past_feat_dynamic_real=use_past_feat_dynamic_real,
+            model_dim=64,
+            ffn_dim_multiplier=2,
+            num_heads=4,
+            num_layers=3,
+            num_outputs=3,
+            kernel_sizes=[3, 5, 7, 9],
+            distance_encoding="dot",
+            pre_layer_norm=False,
+            dropout=0.1,
+            temperature=1.0,
             use_feat_dynamic_real=use_feat_dynamic_real,
+            use_feat_dynamic_cat=False,
+            use_feat_static_real=False,
             use_feat_static_cat=use_feat_static_cat,
-            cardinality=cardinality,
-            embedding_dimension=embedding_dimension,
-            add_time_feature=True,
-            add_age_feature=False,
-            enable_encoder_dynamic_feature=True,
-            enable_decoder_dynamic_feature=True,
-            seed=None,
-            decoder_mlp_dim_seq=None,
-            channels_seq=None,
-            dilation_seq=None,
-            kernel_size_seq=None,
-            use_residual=True,
-            quantiles=None,
-            distr_output=None,
-            scaling=None,
-            scaling_decoder_dynamic_feature=False,
-            num_forking=None,
-            max_ts_len=None,
         )
+    elif algo_name == 'MQCNN':
+        if use_feat_static_cat:
+            estimator = MQCNNEstimator(
+                freq=freq,
+                prediction_length=prediction_length,
+                context_length=context_length,
+                trainer=trainer,
+                batch_size=batch_size,
+                use_past_feat_dynamic_real=use_past_feat_dynamic_real,
+                use_feat_dynamic_real=use_feat_dynamic_real,
+                use_feat_static_cat=use_feat_static_cat,
+                cardinality=cardinality,
+                embedding_dimension=embedding_dimension,
+                add_time_feature=True,
+                add_age_feature=False,
+                enable_encoder_dynamic_feature=True,
+                enable_decoder_dynamic_feature=True,
+                seed=None,
+                decoder_mlp_dim_seq=None,
+                channels_seq=None,
+                dilation_seq=None,
+                kernel_size_seq=None,
+                use_residual=True,
+                quantiles=None,
+                distr_output=None,
+                scaling=None,
+                scaling_decoder_dynamic_feature=False,
+                num_forking=None,
+                max_ts_len=None,
+            )
+        else:
+            estimator = MQCNNEstimator(
+                freq=freq,
+                prediction_length=prediction_length,
+                context_length=context_length,
+                trainer=trainer,
+                batch_size=batch_size,
+                use_past_feat_dynamic_real=use_past_feat_dynamic_real,
+                use_feat_dynamic_real=use_feat_dynamic_real,
+                use_feat_static_cat=use_feat_static_cat,
+                add_time_feature=True,
+                add_age_feature=False,
+                enable_encoder_dynamic_feature=True,
+                enable_decoder_dynamic_feature=True,
+                seed=None,
+                decoder_mlp_dim_seq=None,
+                channels_seq=None,
+                dilation_seq=None,
+                kernel_size_seq=None,
+                use_residual=True,
+                quantiles=None,
+                distr_output=None,
+                scaling=None,
+                scaling_decoder_dynamic_feature=False,
+                num_forking=None,
+                max_ts_len=None,
+            )
     elif algo_name == 'MQRNN':
         estimator = MQRNNEstimator(
             freq=freq,
@@ -339,19 +385,24 @@ def train(args):
             batch_size=batch_size,
         )
     elif algo_name == 'Seq2Seq':
-        # # TODO
-        # estimator = Seq2SeqEstimator(
-        #     freq=freq,
-        #     prediction_length=prediction_length,
-        #     context_length=context_length,
-        #     trainer=trainer,
-        #     cardinality=cardinality,
-        #     embedding_dimension=4,
-        #     encoder=Seq2SeqEncoder(),
-        #     decoder_mlp_layer=[4],
-        #     decoder_mlp_static_dim=4
-        # )
-        pass
+        # TODO: but [ValueError: Deferred initialization failed because shape cannot be inferred. MXNetError: Error in operator rnnencoder0_rnn0_lstm0_rnn0: [06:38:24] ../src/operator/rnn.cc:68: Check failed: dshape.ndim() == 3U (2 vs. 3) : Input data should be rank-3 tensor of dim [sequence length, batch size, input size]]
+        estimator = Seq2SeqEstimator(
+            freq=freq,
+            prediction_length=prediction_length,
+            context_length=context_length,
+            trainer=trainer,
+            cardinality=cardinality,
+            embedding_dimension=embedding_dimension[0],
+            encoder=RNNEncoder(  # MLPEncoder, RNNEncoder, RNNCovariateEncoder, HierarchicalCausalConv1DEncoder
+                            mode='lstm',  # rnn_relu (RNN with relu activation), rnn_tanh, (RNN with tanh activation), lstm or gru.
+                            hidden_size=4,
+                            num_layers=4,
+                            bidirectional=True,
+                            use_static_feat=use_feat_static_cat,
+                            use_dynamic_feat=use_feat_dynamic_real,),
+            decoder_mlp_layer=[4],
+            decoder_mlp_static_dim=4
+        )
     elif algo_name == 'SimpleFeedForward':
         estimator = SimpleFeedForwardEstimator(
             num_hidden_dimensions=[40, 40],
@@ -368,12 +419,12 @@ def train(args):
             freq=freq,
             trainer=trainer,
             batch_size=batch_size,
-            hidden_dim = 32, 
-            variable_dim = None, 
-            num_heads = 4, 
-            num_outputs = 3, 
-            num_instance_per_series = 100, 
-            dropout_rate = 0.1, 
+            hidden_dim=32, 
+            variable_dim=None, 
+            num_heads=4, 
+            num_outputs=3, 
+            num_instance_per_series=100, 
+            dropout_rate=0.1, 
         #     time_features = [], 
         #     static_cardinalities = {}, 
         #     dynamic_cardinalities = {}, 
@@ -401,19 +452,24 @@ def train(args):
             cardinality=cardinality,
         )
     elif algo_name == 'WaveNet':
+        # TODO: bug [MXNetError: Check failed: to.IsDefaultData(): ]
         estimator = WaveNetEstimator(
             freq=freq,
             prediction_length=prediction_length,
             trainer=trainer,
             batch_size=batch_size,
             cardinality=cardinality,
+            embedding_dimension=embedding_dimension[0],
         )
     elif algo_name == 'Naive2':
         # TODO Multiplicative seasonality is not appropriate for zero and negative values
         predictor = Naive2Predictor(freq=freq, prediction_length=prediction_length, season_length=context_length)
     elif algo_name == 'NPTS':
         predictor = NPTSPredictor(freq=freq, prediction_length=prediction_length, context_length=context_length)
+    elif algo_name == 'SeasonalNaive':
+        predictor = SeasonalNaivePredictor(freq=freq, prediction_length=prediction_length)
     elif algo_name == 'Prophet':
+        # TODO: bug [RuntimeError: Can't get fully qualified name of locally defined object. train.<locals>.configure_model]
         def configure_model(model):
             model.add_seasonality(
                 name='weekly', period=7, fourier_order=3, prior_scale=0.1
@@ -438,6 +494,18 @@ def train(args):
                                       method_name='tbats',
                                       period=context_length,
                                       trunc_length=len(train[0]['target']))
+    elif algo_name == 'THETAF':
+        predictor = RForecastPredictor(freq=freq,
+                                      prediction_length=prediction_length,
+                                      method_name='thetaf',
+                                      period=context_length,
+                                      trunc_length=len(train[0]['target']))
+    elif algo_name == 'STLAR':
+        predictor = RForecastPredictor(freq=freq,
+                                      prediction_length=prediction_length,
+                                      method_name='stlar',
+                                      period=context_length,
+                                      trunc_length=len(train[0]['target']))
     elif algo_name == 'CROSTON':
         predictor = RForecastPredictor(freq=freq,
                                       prediction_length=prediction_length,
@@ -450,39 +518,45 @@ def train(args):
                                       method_name='mlp',
                                       period=context_length,
                                       trunc_length=len(train[0]['target']))
-    elif algo_name == 'SeasonalNaive':
-        predictor = SeasonalNaivePredictor(freq=freq, prediction_length=prediction_length)
     else:
         print('[ERROR]:', algo_name, 'not supported')
         return
     
     if predictor is None:
-        try:
-            predictor = estimator.train(train_ds, test_ds)
-        except Exception as e:
-            print(e)
-            try:
-                grouper_train = MultivariateGrouper(max_target_dim=num_timeseries)
-                train_ds_multi = grouper_train(train_ds)
-                test_ds_multi = grouper_train(test_ds)
-                predictor = estimator.train(train_ds_multi, test_ds_multi)
-            except Exception as e:
-                print(e)
+        if not is_multivariant:
+            if algo_name == 'Tree':
+                predictor = estimator.train(train_ds)
+            else:
+                predictor = estimator.train(train_ds, test_ds)
+        else:
+            grouper_train = MultivariateGrouper(max_target_dim=num_timeseries)
+            train_ds_multi = grouper_train(train_ds)
+            test_ds_multi = grouper_train(test_ds)
+            predictor = estimator.train(train_ds_multi, test_ds_multi)
 
-    forecast_it, ts_it = make_evaluation_predictions(
-        dataset=test_ds,  # test dataset
-        predictor=predictor,  # predictor
-        num_samples=100,  # number of sample paths we want for evaluation
-    )
+    if not is_multivariant:
+        forecast_it, ts_it = make_evaluation_predictions(
+            dataset=test_ds,  # test dataset
+            predictor=predictor,  # predictor
+            num_samples=100,  # number of sample paths we want for evaluation
+        )
+    else:
+        forecast_it, ts_it = make_evaluation_predictions(
+            dataset=test_ds_multi,  # test dataset
+            predictor=predictor,  # predictor
+            num_samples=100,  # number of sample paths we want for evaluation
+        )
 
     forecasts = list(forecast_it)
     tss = list(ts_it)
 #     print(len(forecasts), len(tss))
     
     evaluator = Evaluator(quantiles=[0.1, 0.5, 0.9])
-    agg_metrics, item_metrics = evaluator(iter(tss), iter(forecasts), num_series=len(test_ds))
-
-    print(json.dumps(agg_metrics, indent=4))
+    if not is_multivariant:
+        agg_metrics, item_metrics = evaluator(iter(tss), iter(forecasts), num_series=len(test_ds))
+        print(json.dumps(agg_metrics, indent=4))
+    # TODO How to evaluate multivariant?
+    # else: 
     
     model_dir = os.path.join(args.model_dir, algo_name)
     if not os.path.exists(model_dir):
@@ -544,7 +618,7 @@ def model_fn(model_dir):
     sub_dirs = os.listdir(model_dir)
 #     print('[DEBUG] sub_dirs:', sub_dirs)
     for sub_dir in sub_dirs:
-        if sub_dir in ['CanonicalRNN', 'DeepFactor', 'DeepAR', 'DeepState', 'DeepVAR', 'GaussianProcess', 'GPVAR', 'LSTNet', 'NBEATS', 'DeepRenewalProcess', 'Tree', 'SelfAttention', 'MQCNN', 'MQRNN', 'Seq2Seq', 'SimpleFeedForward', 'TemporalFusionTransformer', 'DeepTPP', 'Transformer', 'WaveNet', 'Naive2', 'NPTS', 'Prophet', 'ARIMA', 'ETS', 'TBATS', 'CROSTON', 'MLP', 'SeasonalNaive']:  # TODO add all algo_names
+        if sub_dir in ['CanonicalRNN', 'DeepFactor', 'DeepAR', 'DeepState', 'DeepVAR', 'GaussianProcess', 'GPVAR', 'LSTNet', 'NBEATS', 'DeepRenewalProcess', 'Tree', 'SelfAttention', 'MQCNN', 'MQRNN', 'Seq2Seq', 'SimpleFeedForward', 'TemporalFusionTransformer', 'DeepTPP', 'Transformer', 'WaveNet', 'Naive2', 'NPTS', 'SeasonalNaive', 'Prophet', 'ARIMA', 'ETS', 'TBATS', 'THETAF', 'STLAR', 'CROSTON', 'MLP']:  # TODO add all algo_names
             model_dir = os.path.join(model_dir, sub_dir)
 #             print('[DEBUG] algo_name:', sub_dir)
             break

@@ -2,13 +2,13 @@
 
 ## Local Test
 
-`python main.py --train data --model-dir model --epochs 2 --algo-name DeepAR`
+`python train.py --train data --test data --model-dir model --freq 1D --prediction-length 5 --context-length 50 --epochs 2 --algo-name DeepAR`
 
-`python main.py --train data --model-dir model --epochs 2 --algo-name LSTNet`
+`python train.py --train data --test data --model-dir model --freq 1D --prediction-length 5 --context-length 50 --epochs 2 --algo-name LSTNet`
 
-`python main.py --train data --model-dir model --algo-name ARIMA` (R is supported now!!!)
+`python train.py --train data --test data --model-dir model --freq 1D --prediction-length 5 --context-length 50 --algo-name ARIMA` (R is supported now!!!)
 
-`python main.py --train data --model-dir model --algo-name Prophet` (Predictor is supported now!!!)
+`python train.py --train data --test data --model-dir model --freq 1D --prediction-length 5 --context-length 50 --algo-name Prophet` (Predictor is supported now!!!)
 
 ## Build Docker
 
