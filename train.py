@@ -50,7 +50,7 @@ from gluonts.model.r_forecast import RForecastPredictor
 from gluonts.model.seasonal_naive import SeasonalNaivePredictor
 
 from gluonts.evaluation.backtest import make_evaluation_predictions
-from gluonts.evaluation import Evaluator
+from gluonts.evaluation import Evaluator, MultivariateEvaluator
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -147,7 +147,7 @@ def train(args):
     algo_name = args.algo_name.replace('"', '')
     print('algo_name:', algo_name)
     
-    is_multivariant = False
+    is_multivariate = False
     
     if algo_name == 'CanonicalRNN':
         estimator = CanonicalRNNEstimator(
@@ -215,8 +215,8 @@ def train(args):
             cardinality=cardinality,
             embedding_dimension=embedding_dimension,
         )
-    elif algo_name == 'DeepVAR':  # TODO only for multivariant, bug now
-        is_multivariant = True
+    elif algo_name == 'DeepVAR':  # TODO only for multivariate, bug now
+        is_multivariate = True
         estimator = DeepVAREstimator(  # use multi
             freq=freq,
             prediction_length=prediction_length,
@@ -234,8 +234,8 @@ def train(args):
             batch_size=batch_size,
             cardinality=num_timeseries,
         )
-    elif algo_name == 'GPVAR':  # TODO only for multivariant, bug now
-        is_multivariant = True
+    elif algo_name == 'GPVAR':  # TODO only for multivariate, bug now
+        is_multivariate = True
         estimator = GPVAREstimator(  # use multi
             freq=freq,
             prediction_length=prediction_length,
@@ -245,7 +245,7 @@ def train(args):
             target_dim=96,
         )
     elif algo_name == 'LSTNet':
-        is_multivariant = True
+        is_multivariate = True
         estimator = LSTNetEstimator(  # use multi
             freq=freq,
             prediction_length=prediction_length,
@@ -523,7 +523,7 @@ def train(args):
         return
     
     if predictor is None:
-        if not is_multivariant:
+        if not is_multivariate:
             if algo_name == 'Tree':
                 predictor = estimator.train(train_ds)
             else:
@@ -534,7 +534,7 @@ def train(args):
             test_ds_multi = grouper_train(test_ds)
             predictor = estimator.train(train_ds_multi, test_ds_multi)
 
-    if not is_multivariant:
+    if not is_multivariate:
         forecast_it, ts_it = make_evaluation_predictions(
             dataset=test_ds,  # test dataset
             predictor=predictor,  # predictor
@@ -551,12 +551,14 @@ def train(args):
     tss = list(ts_it)
 #     print(len(forecasts), len(tss))
     
-    evaluator = Evaluator(quantiles=[0.1, 0.5, 0.9])
-    if not is_multivariant:
+    if not is_multivariate:
+        evaluator = Evaluator(quantiles=[0.1, 0.5, 0.9])
         agg_metrics, item_metrics = evaluator(iter(tss), iter(forecasts), num_series=len(test_ds))
-        print(json.dumps(agg_metrics, indent=4))
-    # TODO How to evaluate multivariant?
-    # else: 
+    # TODO How to evaluate multivariate?
+    else: 
+        evaluator = MultivariateEvaluator(quantiles=[0.1, 0.5, 0.9])
+        agg_metrics, item_metrics = evaluator(iter(tss), iter(forecasts), num_series=len(test_ds_multi))
+    print(json.dumps(agg_metrics, indent=4))
     
     model_dir = os.path.join(args.model_dir, algo_name)
     if not os.path.exists(model_dir):
@@ -660,7 +662,7 @@ def predict_fn(input_data, model):
     else:
         if isinstance(input_data, list):
             instances = input_data
-        elif isinstance(data, dict):
+        elif isinstance(input_data, dict):
             instances = [input_data]
 
     ds = ListDataset(parse_data(instances), freq=freq)
