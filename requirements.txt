@@ -1,9 +1,10 @@
 mxnet
 gluonts
+#gluonts[Prophet]
 #pystan==2.14
 #fbprophet
-pystan==2.19.1.1
-prophet
+#pystan==2.19.1.1
+#prophet
 xgboost
 statsmodels
 flask
