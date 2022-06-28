@@ -149,9 +149,9 @@ def train(args):
         print('train_ds:', next(iter(train_ds)))
         print('test_ds:', next(iter(test_ds)))
         
-    if algo_name in ['ARIMA', 'ETS', 'TBATS', 'THETAF', 'STLAR', 'CROSTON', 'MLP']:
-        print('install ryp2')
-        os.system('/opt/ml/code/install_rpy2.sh')
+#     if algo_name in ['ARIMA', 'ETS', 'TBATS', 'THETAF', 'STLAR', 'CROSTON', 'MLP']:
+#         print('install ryp2')
+#         os.system('/opt/ml/code/install_rpy2.sh')
     
     predictor = None
     
@@ -657,6 +657,10 @@ def model_fn(model_dir):
         is_multivariate = True
     print('[DEBUG] algo_name:', algo_name)
     print('[DEBUG] is_multivariate:', is_multivariate)
+    
+#     if algo_name in ['ARIMA', 'ETS', 'TBATS', 'THETAF', 'STLAR', 'CROSTON', 'MLP']:
+#         print('[DEBUG] install ryp2')
+#         os.system('/opt/ml/code/install_rpy2.sh')
         
     predictor = Predictor.deserialize(Path(model_dir))
     print('[DEBUG] model init done.')
