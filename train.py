@@ -148,6 +148,10 @@ def train(args):
         test_ds = ListDataset(parse_data(test, use_log1p=use_log1p), freq=freq)
         print('train_ds:', next(iter(train_ds)))
         print('test_ds:', next(iter(test_ds)))
+        
+    if algo_name in ['ARIMA', 'ETS', 'TBATS', 'THETAF', 'STLAR', 'CROSTON', 'MLP']:
+        print('install ryp2')
+        os.system('/opt/ml/code/install_rpy2.sh')
     
     predictor = None
     
