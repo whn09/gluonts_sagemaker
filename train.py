@@ -52,7 +52,7 @@ from gluonts.model.seasonal_naive import SeasonalNaivePredictor
 from gluonts.evaluation.backtest import make_evaluation_predictions
 from gluonts.evaluation import Evaluator, MultivariateEvaluator
 
-logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 
 
 def load_json(filename):
@@ -96,6 +96,7 @@ def train(args):
     use_past_feat_dynamic_real = args.use_past_feat_dynamic_real
     use_feat_static_cat = args.use_feat_static_cat
     use_log1p = args.use_log1p
+    quantiles = [0.1, 0.5, 0.9]  # TODO add to args
     
     print('freq:', freq)
     print('prediction_length:', prediction_length)
@@ -104,6 +105,7 @@ def train(args):
     print('use_past_feat_dynamic_real:', use_past_feat_dynamic_real)
     print('use_feat_static_cat:', use_feat_static_cat)
     print('use_log1p:', use_log1p)
+    print('quantiles:', quantiles)
     
     batch_size = args.batch_size
     print('batch_size:', batch_size)
@@ -113,11 +115,39 @@ def train(args):
     
     num_timeseries = len(train)
     print('num_timeseries:', num_timeseries)
-
-    train_ds = ListDataset(parse_data(train, use_log1p=use_log1p), freq=freq)
-    test_ds = ListDataset(parse_data(test, use_log1p=use_log1p), freq=freq)
-    print('train_ds:', next(iter(train_ds)))
-    print('test_ds:', next(iter(test_ds)))
+    
+    algo_name = args.algo_name.replace('"', '')
+    print('algo_name:', algo_name)
+    
+    is_multivariate = False
+    if algo_name in ['DeepVAR', 'GPVAR', 'LSTNet']:
+        is_multivariate = True
+    print('is_multivariate:', is_multivariate)
+    if is_multivariate:
+#             grouper_train = MultivariateGrouper(max_target_dim=num_timeseries)
+#             train_ds_multi = grouper_train(train_ds)
+#             test_ds_multi = grouper_train(test_ds)
+#             print('train_ds_multi:', len(train_ds_multi), next(iter(train_ds_multi)), next(iter(train_ds_multi))['target'].shape)
+#             print('test_ds_multi:', len(test_ds_multi), next(iter(test_ds_multi)), next(iter(test_ds_multi))['target'].shape)
+        target_dim = 1
+        for i in range(len(train)):
+            if len(np.array(train[i]['target']).shape) == 1:
+                train[i]['target'] = [train[i]['target']]
+            else:
+                target_dim = len(train[i]['target'])
+        for i in range(len(test)):
+            if len(np.array(test[i]['target']).shape) == 1:
+                test[i]['target'] = [test[i]['target']]
+        print('target_dim:', target_dim)
+        train_ds_multi = ListDataset(parse_data(train, use_log1p=use_log1p), freq=freq, one_dim_target=False)
+        test_ds_multi = ListDataset(parse_data(test, use_log1p=use_log1p), freq=freq, one_dim_target=False)
+        print('train_ds_multi:', len(train_ds_multi), next(iter(train_ds_multi)), next(iter(train_ds_multi))['target'].shape)
+        print('test_ds_multi:', len(test_ds_multi), next(iter(test_ds_multi)), next(iter(test_ds_multi))['target'].shape)
+    else:
+        train_ds = ListDataset(parse_data(train, use_log1p=use_log1p), freq=freq)
+        test_ds = ListDataset(parse_data(test, use_log1p=use_log1p), freq=freq)
+        print('train_ds:', next(iter(train_ds)))
+        print('test_ds:', next(iter(test_ds)))
     
     predictor = None
     
@@ -143,11 +173,6 @@ def train(args):
     
     embedding_dimension = [min(50, (cat+1)//2) for cat in cardinality] if cardinality is not None else None
     print('embedding_dimension:', embedding_dimension)
-    
-    algo_name = args.algo_name.replace('"', '')
-    print('algo_name:', algo_name)
-    
-    is_multivariate = False
     
     if algo_name == 'CanonicalRNN':
         estimator = CanonicalRNNEstimator(
@@ -216,14 +241,13 @@ def train(args):
             embedding_dimension=embedding_dimension,
         )
     elif algo_name == 'DeepVAR':  # TODO only for multivariate, bug now
-        is_multivariate = True
         estimator = DeepVAREstimator(  # use multi
             freq=freq,
             prediction_length=prediction_length,
             context_length=context_length,
             trainer=trainer,
             batch_size=batch_size,
-            target_dim=num_timeseries,
+            target_dim=target_dim,  # num_timeseries
         )
     elif algo_name == 'GaussianProcess':
         estimator = GaussianProcessEstimator(
@@ -235,22 +259,20 @@ def train(args):
             cardinality=num_timeseries,
         )
     elif algo_name == 'GPVAR':  # TODO only for multivariate, bug now
-        is_multivariate = True
         estimator = GPVAREstimator(  # use multi
             freq=freq,
             prediction_length=prediction_length,
             context_length=context_length,
             trainer=trainer,
             batch_size=batch_size,
-            target_dim=96,
+            target_dim=target_dim,
         )
     elif algo_name == 'LSTNet':
-        is_multivariate = True
         estimator = LSTNetEstimator(  # use multi
             freq=freq,
             prediction_length=prediction_length,
             context_length=context_length,
-            num_series=num_timeseries,
+            num_series=target_dim,  # num_timeseries
             skip_size=4,
             ar_window=4,
             channels=72,
@@ -292,7 +314,7 @@ def train(args):
             model_params = {'eta': 0.1, 'max_depth': 6, 'silent': 0, 'nthread': -1, 'n_jobs': -1, 'gamma': 1, 'subsample': 0.9, 'min_child_weight': 1, 'colsample_bytree': 0.9, 'lambda': 1, 'booster': 'gbtree'},
             max_workers = 4,  # default: None
             method = "QRX",  # "QRX",  "QuantileRegression", "QRF"
-            quantiles=None,  # Used only for "QuantileRegression" method.
+            quantiles=quantiles,  # Used only for "QuantileRegression" method.
             model=None,
             seed=None,
         )
@@ -342,7 +364,7 @@ def train(args):
                 dilation_seq=None,
                 kernel_size_seq=None,
                 use_residual=True,
-                quantiles=None,
+                quantiles=quantiles,
                 distr_output=None,
                 scaling=None,
                 scaling_decoder_dynamic_feature=False,
@@ -369,7 +391,7 @@ def train(args):
                 dilation_seq=None,
                 kernel_size_seq=None,
                 use_residual=True,
-                quantiles=None,
+                quantiles=quantiles,
                 distr_output=None,
                 scaling=None,
                 scaling_decoder_dynamic_feature=False,
@@ -529,9 +551,6 @@ def train(args):
             else:
                 predictor = estimator.train(train_ds, test_ds)
         else:
-            grouper_train = MultivariateGrouper(max_target_dim=num_timeseries)
-            train_ds_multi = grouper_train(train_ds)
-            test_ds_multi = grouper_train(test_ds)
             predictor = estimator.train(train_ds_multi, test_ds_multi)
 
     if not is_multivariate:
@@ -552,11 +571,14 @@ def train(args):
 #     print(len(forecasts), len(tss))
     
     if not is_multivariate:
-        evaluator = Evaluator(quantiles=[0.1, 0.5, 0.9])
+        evaluator = Evaluator(quantiles=quantiles)
         agg_metrics, item_metrics = evaluator(iter(tss), iter(forecasts), num_series=len(test_ds))
     # TODO How to evaluate multivariate?
     else: 
-        evaluator = MultivariateEvaluator(quantiles=[0.1, 0.5, 0.9])
+        if target_dim==1:
+            evaluator = Evaluator(quantiles=quantiles)
+        else:
+            evaluator = MultivariateEvaluator(quantiles=quantiles)
         agg_metrics, item_metrics = evaluator(iter(tss), iter(forecasts), num_series=len(test_ds_multi))
     print(json.dumps(agg_metrics, indent=4))
     
@@ -623,10 +645,18 @@ def model_fn(model_dir):
         if sub_dir in ['CanonicalRNN', 'DeepFactor', 'DeepAR', 'DeepState', 'DeepVAR', 'GaussianProcess', 'GPVAR', 'LSTNet', 'NBEATS', 'DeepRenewalProcess', 'Tree', 'SelfAttention', 'MQCNN', 'MQRNN', 'Seq2Seq', 'SimpleFeedForward', 'TemporalFusionTransformer', 'DeepTPP', 'Transformer', 'WaveNet', 'Naive2', 'NPTS', 'SeasonalNaive', 'Prophet', 'ARIMA', 'ETS', 'TBATS', 'THETAF', 'STLAR', 'CROSTON', 'MLP']:  # TODO add all algo_names
             model_dir = os.path.join(model_dir, sub_dir)
 #             print('[DEBUG] algo_name:', sub_dir)
+            algo_name = sub_dir
             break
+    
+    is_multivariate = False
+    if algo_name in ['DeepVAR', 'GPVAR', 'LSTNet']:
+        is_multivariate = True
+    print('[DEBUG] algo_name:', algo_name)
+    print('[DEBUG] is_multivariate:', is_multivariate)
+        
     predictor = Predictor.deserialize(Path(model_dir))
-#     print('[DEBUG] model init done.')
-    return predictor
+    print('[DEBUG] model init done.')
+    return (predictor, is_multivariate)
 
 
 def input_fn(request_body, request_content_type):
@@ -644,11 +674,12 @@ def input_fn(request_body, request_content_type):
 
     
 def predict_fn(input_data, model):
+    (predictor, is_multivariate) = model
 #     print('[DEBUG] input_data type:', type(input_data), input_data)
     if 'freq' in input_data:
         freq = input_data['freq']
     else:
-        freq = '1H'
+        freq = '1D'
     if 'target_quantile' in input_data:
         target_quantile = float(input_data['target_quantile'])
     else:
@@ -665,9 +696,15 @@ def predict_fn(input_data, model):
         elif isinstance(input_data, dict):
             instances = [input_data]
 
-    ds = ListDataset(parse_data(instances), freq=freq)
+    if is_multivariate:
+        for i in range(len(instances)):
+            if len(np.array(instances[i]['target']).shape) == 1:
+                instances[i]['target'] = [instances[i]['target']]
+        ds = ListDataset(parse_data(instances), freq=freq, one_dim_target=False)
+    else:
+        ds = ListDataset(parse_data(instances), freq=freq)
     
-    inference_result = model.predict(ds)
+    inference_result = predictor.predict(ds)
     
     if use_log1p:
         result = [np.expm1(resulti.quantile(target_quantile)).tolist() for resulti in inference_result]
@@ -682,6 +719,21 @@ def output_fn(prediction, content_type):
 
 
 if __name__ == '__main__':
+    # train
     args = parse_args()
-    
     train(args)
+    
+    # predict
+#     test_data = {"start": "2020-01-22 00:00:00", "target": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 4.0, 4.0, 5.0, 7.0, 7.0, 7.0, 11.0, 16.0, 21.0, 22.0, 22.0, 22.0, 24.0, 24.0, 40.0, 40.0, 74.0, 84.0, 94.0, 110.0, 110.0, 120.0, 170.0, 174.0, 237.0], "id": "Afghanistan_"}
+#     test_data['target'] = test_data['target'][:-5]
+#     data = {'instances': [test_data]}
+#     data['freq'] = '1D'
+#     data['target_quantile'] = 0.5
+#     request_body = json.dumps(data)
+    
+#     model = model_fn('./model')
+#     input_data = input_fn(request_body, 'application/json')
+#     result = predict_fn(input_data, model)
+#     output = output_fn(result, 'application/json')
+#     print(output)
+    
