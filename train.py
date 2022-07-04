@@ -655,15 +655,15 @@ def model_fn(model_dir):
     is_multivariate = False
     if algo_name in ['DeepVAR', 'GPVAR', 'LSTNet']:
         is_multivariate = True
-    print('[DEBUG] algo_name:', algo_name)
-    print('[DEBUG] is_multivariate:', is_multivariate)
+#     print('[DEBUG] algo_name:', algo_name)
+#     print('[DEBUG] is_multivariate:', is_multivariate)
     
 #     if algo_name in ['ARIMA', 'ETS', 'TBATS', 'THETAF', 'STLAR', 'CROSTON', 'MLP']:
 #         print('[DEBUG] install ryp2')
 #         os.system('/opt/ml/code/install_rpy2.sh')
         
     predictor = Predictor.deserialize(Path(model_dir))
-    print('[DEBUG] model init done.')
+#     print('[DEBUG] model init done.')
     return (predictor, is_multivariate)
 
 
